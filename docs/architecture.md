@@ -33,8 +33,9 @@ pour les administrateurs de la plateforme. L'API vérifie que le jeton vient du
 realm de l'université servie par le nom d'hôte. À la première connexion, un
 utilisateur invité est relié à son compte Keycloak par e-mail vérifié.
 
-Prochaine étape : création automatique du realm lors de l'onboarding, via
-l'API d'administration de Keycloak.
+Le realm est créé à l'onboarding via l'API d'administration de Keycloak
+(`src/keycloak`), avant l'écriture en base. Le Recteur y est invité avec
+vérification d'e-mail, mot de passe et TOTP obligatoires.
 
 ## RBAC
 

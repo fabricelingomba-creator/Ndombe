@@ -16,6 +16,12 @@ const envSchema = z.object({
   /** Nombre de proxys de confiance devant l'API (Cloudflare, ingress). */
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).default(0),
   TENANT_CACHE_TTL_MS: z.coerce.number().int().min(0).default(60_000),
+  /**
+   * Client de service Keycloak (realm master, client credentials) qui crée les
+   * realms des universités. Sans lui, l'onboarding n'écrit que la base.
+   */
+  KEYCLOAK_ADMIN_CLIENT_ID: z.string().min(1).optional(),
+  KEYCLOAK_ADMIN_CLIENT_SECRET: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

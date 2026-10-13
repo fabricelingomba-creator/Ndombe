@@ -16,6 +16,7 @@ ce dépôt en reprend les décisions dans [docs/architecture.md](docs/architectu
 | Schéma multi-tenant, Row-Level Security PostgreSQL | `apps/api/migrations` |
 | Résolution de l'université par domaine ou sous-domaine | `apps/api/src/tenancy` |
 | Authentification Keycloak (un realm par université) | `apps/api/src/auth` |
+| Création des realms et invitation du Recteur | `apps/api/src/keycloak` |
 | RBAC par permissions et portées (université, faculté, département, cours) | `apps/api/src/rbac` |
 | Journal d'audit en ajout seul, chaîné par hash | `apps/api/src/audit` |
 | Onboarding d'une université (Super Admin) | `apps/api/src/platform` |
@@ -55,6 +56,26 @@ TOKEN=$(curl -s -d client_id=elongo-portal -d grant_type=password \
   http://localhost:8080/realms/univ-demo/protocol/openid-connect/token | jq -r .access_token)
 curl -H "Authorization: Bearer $TOKEN" http://demo.elongo.localhost:3000/v1/me
 ```
+
+## Création automatique des realms
+
+À l'onboarding d'une université (`POST /platform/tenants`), l'API crée le realm
+Keycloak `univ-<slug>` (clients web et mobile en PKCE, protection contre le
+bourrage d'identifiants, inscription libre fermée) puis invite le Recteur :
+il reçoit un e-mail pour vérifier son adresse, choisir son mot de passe et
+configurer la double authentification.
+
+Il faut pour cela un client de service dans le realm `master` :
+
+1. Console Keycloak, realm `master`, Clients, créer `elongo-provisioner`.
+2. Activer « Client authentication » et « Service accounts roles ».
+3. Onglet « Service accounts roles » : attribuer le rôle `admin` du realm.
+4. Copier le secret dans `KEYCLOAK_ADMIN_CLIENT_SECRET` (et l'identifiant dans `KEYCLOAK_ADMIN_CLIENT_ID`).
+
+Sans ces variables, l'onboarding n'écrit que la base. Si Keycloak refuse le
+realm, rien n'est écrit en base ; si seule l'invitation échoue, l'université
+est créée et `POST /platform/tenants/<slug>/keycloak/sync` rejoue l'étape.
+L'envoi d'e-mails suppose un serveur SMTP configuré dans le realm.
 
 ## Tests
 

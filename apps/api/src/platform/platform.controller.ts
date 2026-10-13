@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { Public } from '../auth/decorators';
 import { PlatformAdminGuard } from '../auth/platform-admin.guard';
@@ -23,5 +23,12 @@ export class PlatformController {
   @Post()
   create(@Body(new ZodPipe(provisionTenantSchema)) body: ProvisionTenantInput, @Req() req: Request) {
     return this.provisioning.provision(body, req.platformAdmin!.externalId);
+  }
+
+  /** Rejoue la création du realm Keycloak et l'invitation du Recteur. */
+  @Post(':slug/keycloak/sync')
+  @HttpCode(200)
+  syncKeycloak(@Param('slug') slug: string) {
+    return this.provisioning.syncKeycloak(slug);
   }
 }
