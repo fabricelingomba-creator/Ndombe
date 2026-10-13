@@ -42,7 +42,12 @@ vérification d'e-mail, mot de passe et TOTP obligatoires.
 Permissions fines (`src/rbac/permissions.ts`), regroupées en rôles par
 université. Les rôles système (Recteur, SG académique, SG administratif,
 SG recherche, Professeur, Étudiant) sont créés à l'onboarding. Chaque
-attribution porte une portée ; une portée faculté couvre ses départements.
+attribution porte une portée ; une portée faculté couvre ses départements,
+une portée département ses cours. La portée « course » désigne une offre de
+cours (un cours donné pendant une période) : c'est ainsi qu'un professeur
+reçoit ses enseignements. Les lectures communes au campus (annonces, liste
+des facultés, calendrier) acceptent la permission détenue sur n'importe
+quelle portée (`@RequirePermission(..., 'any')`).
 
 ## Audit
 
@@ -64,3 +69,22 @@ voit jamais de jeton. Le jeton d'accès (15 min) est renouvelé par
 
 Les menus de l'espace connecté sont calculés à partir des permissions
 (`src/lib/navigation.ts`), comme le fera l'app mobile.
+
+## Cours et notes
+
+Catalogue par département (`courses`), périodes (`academic_terms`), offres
+(`course_offerings` : un cours, une période, une section), inscriptions et
+notes sur 20. La feuille de notes d'une offre suit un circuit :
+
+```
+brouillon → soumise → approuvée → publiée
+               └→ renvoyée (avec motif) → soumise …
+```
+
+- Le professeur saisit et soumet (feuille complète obligatoire).
+- Le SG académique de la faculté approuve ou renvoie ; on n'approuve pas une
+  feuille qu'on a soumise soi-même (principe des quatre yeux).
+- La publication rend les notes visibles aux étudiants, avec la moyenne
+  pondérée par les crédits et les crédits acquis (note ≥ 10/20).
+- Une fois soumise, une note n'est plus modifiable : l'API le refuse et un
+  trigger PostgreSQL le refuse aussi. Chaque étape est tracée dans l'audit.

@@ -1,8 +1,9 @@
 import 'reflect-metadata';
 import { INestApplication } from '@nestjs/common';
-import { NestFactory } from '@nestjs/core';
+import { HttpAdapterHost, NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
+import { PgErrorFilter } from './common/pg-error.filter';
 import { Env, loadEnv } from './config/env';
 
 export function configureApp(app: INestApplication, env: Env) {
@@ -10,6 +11,7 @@ export function configureApp(app: INestApplication, env: Env) {
   // Nécessaire derrière Cloudflare / l'ingress pour lire le bon nom d'hôte et la bonne IP.
   express.set('trust proxy', env.TRUST_PROXY_HOPS);
   express.disable('x-powered-by');
+  app.useGlobalFilters(new PgErrorFilter(app.get(HttpAdapterHost).httpAdapter));
   app.enableShutdownHooks();
   return app;
 }

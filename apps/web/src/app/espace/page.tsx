@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { FormattedDate } from '@/components/date';
 import { SiteFooter, SiteHeader } from '@/components/site-header';
-import { getAnnouncements, getManifest } from '@/lib/api';
+import { ApiError, getAnnouncements, getManifest } from '@/lib/api';
 import { requireUser } from '@/lib/auth';
 import { navFor } from '@/lib/navigation';
 import { portalRequest } from '@/lib/request';
@@ -22,7 +22,13 @@ export default async function SpacePage() {
   const { host } = await portalRequest();
   const manifest = (await getManifest(host))!;
   const { me, accessToken } = await requireUser(host, '/espace');
-  const announcements = me.permissions.includes('announcements:read') ? await getAnnouncements(host, accessToken) : [];
+  // Le fil d'annonces est secondaire : un refus ne doit pas empêcher d'afficher l'espace.
+  const announcements = me.permissions.includes('announcements:read')
+    ? await getAnnouncements(host, accessToken).catch((err) => {
+        if (err instanceof ApiError && err.status === 403) return [];
+        throw err;
+      })
+    : [];
   const sections = navFor(me.permissions);
 
   return (

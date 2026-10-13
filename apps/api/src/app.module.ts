@@ -1,5 +1,8 @@
 import { DynamicModule, MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
+import { CatalogController, TermsController } from './academic/catalog.controller';
 import { FacultiesController } from './academic/faculties.controller';
+import { GradeSheetsController, MyAcademicsController } from './academic/my-academics.controller';
+import { OfferingsController } from './academic/offerings.controller';
 import { AuditController } from './audit/audit.controller';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
@@ -34,6 +37,11 @@ export class AppModule implements NestModule {
         BrandingController,
         MeController,
         FacultiesController,
+        TermsController,
+        CatalogController,
+        OfferingsController,
+        MyAcademicsController,
+        GradeSheetsController,
         AuditController,
         AnnouncementsController,
         PublicHomepageController,

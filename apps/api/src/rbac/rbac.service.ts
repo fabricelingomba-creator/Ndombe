@@ -29,7 +29,21 @@ export class RbacService {
         ? [target, { type: 'faculty', id: facultyId }, UNIVERSITY_SCOPE]
         : [target, UNIVERSITY_SCOPE];
     }
-    // Les cours seront rattachés à leur département en phase 1.
+    if (target.type === 'course' && target.id) {
+      // Portée « course » = une offre de cours ; on remonte offre → département → faculté.
+      const res = await tx.query<{ department_id: string; faculty_id: string }>(
+        `SELECT c.department_id, d.faculty_id
+           FROM course_offerings o
+           JOIN courses c ON c.id = o.course_id
+           JOIN departments d ON d.id = c.department_id
+          WHERE o.id = $1`,
+        [target.id],
+      );
+      const row = res.rows[0];
+      return row
+        ? [target, { type: 'department', id: row.department_id }, { type: 'faculty', id: row.faculty_id }, UNIVERSITY_SCOPE]
+        : [target, UNIVERSITY_SCOPE];
+    }
     return [target, UNIVERSITY_SCOPE];
   }
 }

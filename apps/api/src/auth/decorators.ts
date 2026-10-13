@@ -11,8 +11,12 @@ export const Public = () => SetMetadata(IS_PUBLIC, true);
 export const REQUIRED_PERMISSION = 'elongo:requiredPermission';
 export interface PermissionRequirement {
   permission: Permission;
-  /** Où lire l'identifiant de la cible ; absent = action à l'échelle de l'université. */
-  scope?: { type: Exclude<ScopeType, 'university'>; param: string };
+  /**
+   * Où lire l'identifiant de la cible ; absent = action à l'échelle de l'université.
+   * 'any' : la permission détenue sur n'importe quelle portée suffit (lectures
+   * communes à tout le campus, comme les annonces ou la liste des facultés).
+   */
+  scope?: { type: Exclude<ScopeType, 'university'>; param: string } | 'any';
 }
 export const RequirePermission = (permission: Permission, scope?: PermissionRequirement['scope']) =>
   SetMetadata(REQUIRED_PERMISSION, { permission, scope } satisfies PermissionRequirement);

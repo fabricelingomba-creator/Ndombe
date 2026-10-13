@@ -27,7 +27,7 @@ export class FacultiesController {
   ) {}
 
   @Get()
-  @RequirePermission('academic:structure:read')
+  @RequirePermission('academic:structure:read', 'any')
   list(@CurrentTenant() tenant: Tenant) {
     // Pas de filtre tenant_id ici : la RLS ne renvoie que les facultés de l'université courante.
     return this.db.withTenant(tenant.id, async (tx) => {
