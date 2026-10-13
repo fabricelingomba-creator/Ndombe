@@ -1,11 +1,11 @@
 import { relayPaymentWebhook } from '@/lib/api';
 
 /** En-têtes utiles à la vérification ; les autres (cookies…) ne sont pas relayés. */
-const FORWARDED = ['content-type', 'stripe-signature', 'x-sandbox-signature'];
+const FORWARDED = ['content-type', 'x-sandbox-signature'];
 const MAX_BODY = 256 * 1024;
 
 /**
- * Point de réception des notifications des prestataires (Stripe, agrégateur
+ * Point de réception des notifications des prestataires (agrégateur
  * Mobile Money) sur le domaine du portail. L'API vérifie la signature.
  */
 export async function POST(request: Request, { params }: { params: Promise<{ provider: string; tenant: string }> }) {

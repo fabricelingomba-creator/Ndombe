@@ -20,7 +20,7 @@ const FILTERS = [
 
 /** Frais de scolarité, factures, encaissements et moyens de paiement. */
 export default async function FinancePage({ searchParams }: { searchParams: Promise<{ statut?: string }> }) {
-  const { host, origin } = await portalRequest();
+  const { host } = await portalRequest();
   const manifest = (await getManifest(host))!;
   const { me, accessToken } = await requireUser(host, '/espace/finances');
   const canRead = me.permissions.includes('finance:read');
@@ -188,21 +188,12 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
         </>
       )}
 
-      {canConfigure && <ProvidersSection providers={providers} webhookBase={`${origin}/webhooks/payments`} slug={manifest.slug} />}
+      {canConfigure && <ProvidersSection providers={providers} />}
     </SpaceShell>
   );
 }
 
-function ProvidersSection({
-  providers,
-  webhookBase,
-  slug,
-}: {
-  providers: PaymentProviderConfig[];
-  webhookBase: string;
-  slug: string;
-}) {
-  const stripe = providers.find((p) => p.provider === 'stripe');
+function ProvidersSection({ providers }: { providers: PaymentProviderConfig[] }) {
   const sandbox = providers.find((p) => p.provider === 'sandbox');
   return (
     <section className="queue" aria-labelledby="moyens">
@@ -213,26 +204,6 @@ function ProvidersSection({
       </p>
       <ul className="cards single">
         <li className="card">
-          <h3>Carte bancaire (Stripe)</h3>
-          <p className="card-meta">{stripe?.enabled ? 'Activé' : 'Non configuré'}</p>
-          <p className="small">
-            Adresse des notifications à déclarer dans Stripe (événements <code>checkout.session.*</code>) :
-            <br />
-            <code className="hash">{`${webhookBase}/stripe/${slug}`}</code>
-          </p>
-          <ActionForm action={configurePaymentProvider.bind(null, 'stripe')} className="form-grid">
-            <label>
-              Clé secrète
-              <input name="secretKey" required autoComplete="off" placeholder="sk_live_…" className="text-input" />
-            </label>
-            <label>
-              Secret de signature des webhooks
-              <input name="webhookSecret" required autoComplete="off" placeholder="whsec_…" className="text-input" />
-            </label>
-            <SubmitButton>{stripe ? 'Remplacer les clés' : 'Activer Stripe'}</SubmitButton>
-          </ActionForm>
-        </li>
-        <li className="card">
           <h3>Mobile Money (simulation)</h3>
           <p className="card-meta">{sandbox?.enabled ? 'Activé' : 'Non activé'}</p>
           <p className="small muted">
@@ -240,7 +211,7 @@ function ProvidersSection({
             argent ne circule. Indisponible en production, où un agrégateur Mobile Money (M-Pesa, Orange Money, Airtel
             Money) prendra le relais.
           </p>
-          {!sandbox && (
+          {!sandbox?.enabled && (
             <ActionForm action={configurePaymentProvider.bind(null, 'sandbox')}>
               <SubmitButton variant="outline">Activer la simulation</SubmitButton>
             </ActionForm>

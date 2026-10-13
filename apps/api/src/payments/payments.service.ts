@@ -13,9 +13,8 @@ import { ENV, Env, sandboxPaymentsEnabled } from '../config/env';
 import { DatabaseService, Tx } from '../db/database.service';
 import { Tenant } from '../tenancy/tenant';
 import type { Currency } from './money';
-import { PAYMENT_FETCH, PaymentFetch, PaymentProvider, ProviderEvent, ProviderKey } from './providers/provider';
+import { PaymentProvider, ProviderEvent, ProviderKey } from './providers/provider';
 import { SandboxProvider } from './providers/sandbox.provider';
-import { StripeProvider } from './providers/stripe.provider';
 import { openSecrets, sealSecrets } from './secret-box';
 
 /** Un paiement en attente plus récent que ce délai bloque un nouvel essai (anti double paiement). */
@@ -48,10 +47,9 @@ export class PaymentsService {
     private readonly db: DatabaseService,
     private readonly audit: AuditService,
     @Inject(ENV) private readonly env: Env,
-    @Inject(PAYMENT_FETCH) fetch: PaymentFetch,
   ) {
     this.key = env.PAYMENT_SECRETS_KEY ? Buffer.from(env.PAYMENT_SECRETS_KEY, 'base64') : null;
-    const all: PaymentProvider[] = [new StripeProvider(fetch)];
+    const all: PaymentProvider[] = [];
     if (sandboxPaymentsEnabled(env)) all.push(new SandboxProvider());
     this.providers = new Map(all.map((p) => [p.key, p]));
   }

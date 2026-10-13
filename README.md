@@ -24,7 +24,7 @@ ce dépôt en reprend les décisions dans [docs/architecture.md](docs/architectu
 | Portail web à la marque (Next.js) : accueil, connexion, espace | `apps/web` |
 | Cours, inscriptions, notes et circuit de validation | `apps/api/src/academic`, `apps/web/src/app/espace` |
 | Relevés officiels en PDF, vérifiables par code | `apps/api/src/transcripts`, `apps/web/src/app/verifier` |
-| Frais, factures et paiements (Mobile Money, carte via Stripe), webhooks signés | `apps/api/src/payments`, `apps/web/src/app/espace/paiements` |
+| Frais, factures et paiements Mobile Money, webhooks signés | `apps/api/src/payments`, `apps/web/src/app/espace/paiements` |
 
 ## Démarrer en local
 

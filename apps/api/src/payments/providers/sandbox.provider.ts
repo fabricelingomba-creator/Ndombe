@@ -4,6 +4,8 @@ import { verifyTimestampedSignature } from './signature';
 
 export const SANDBOX_SIGNATURE_HEADER = 'x-sandbox-signature';
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * Mobile Money simulé, pour le développement et les démonstrations : la
  * demande part « vers le téléphone » et la confirmation arrive par un webhook
@@ -30,7 +32,7 @@ export class SandboxProvider implements PaymentProvider {
     let body: {
       id?: unknown;
       type?: unknown;
-      data?: { reference?: unknown; amount_minor?: unknown; currency?: unknown; reason?: unknown };
+      data?: { reference?: unknown; payment_id?: unknown; amount_minor?: unknown; currency?: unknown; reason?: unknown };
     };
     try {
       body = JSON.parse(rawBody.toString('utf8'));
@@ -43,6 +45,8 @@ export class SandboxProvider implements PaymentProvider {
       eventId: body.id,
       type: body.type,
       providerRef: typeof body.data?.reference === 'string' ? body.data.reference : null,
+      // Référence marchand renvoyée par l'agrégateur, comme le font les vrais.
+      paymentId: typeof body.data?.payment_id === 'string' && UUID.test(body.data.payment_id) ? body.data.payment_id : undefined,
       outcome,
       amountMinor: typeof body.data?.amount_minor === 'number' ? body.data.amount_minor : undefined,
       currency: typeof body.data?.currency === 'string' ? body.data.currency : undefined,

@@ -9,7 +9,7 @@ export function signPayload(secret: string, timestamp: number, rawBody: Buffer |
 }
 
 /**
- * Vérifie un en-tête au format Stripe : « t=<horodatage>,v1=<hmac>[,v1=…] ».
+ * Vérifie un en-tête signé et horodaté : « t=<horodatage>,v1=<hmac>[,v1=…] ».
  * HMAC-SHA256 de « t.corps », comparé en temps constant, horodatage récent.
  */
 export function verifyTimestampedSignature(

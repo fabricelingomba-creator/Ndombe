@@ -2,7 +2,7 @@ import request from 'supertest';
 import { signPayload } from '../src/payments/providers/signature';
 import { createHarness, Harness } from './harness';
 
-/** Frais, factures, paiement Mobile Money (simulé) et carte (Stripe), webhooks signés. */
+/** Frais, factures, paiement Mobile Money (simulé), webhooks signés. */
 describe('Paiements', () => {
   let h: Harness;
   let tenantId: string;
@@ -12,14 +12,9 @@ describe('Paiements', () => {
   const tokens: Record<string, string> = {};
   const users: Record<string, string> = {};
   let sandboxSecret: string;
-  const stripeSecret = 'whsec_testsecret0123456789';
   let feeId: string;
   let invoiceId: string;
   let otherInvoiceId: string;
-  /** Requêtes envoyées à Stripe (simulé). */
-  const stripeCalls: { url: string; init?: RequestInit }[] = [];
-  let stripeSession = 0;
-  let stripeDown = false;
 
   const api = () => request(h.app.getHttpServer());
   const as = (who: string) => ({ Host: host, Authorization: `Bearer ${tokens[who]}` });
@@ -45,17 +40,7 @@ describe('Paiements', () => {
   }
 
   beforeAll(async () => {
-    h = await createHarness({
-      paymentFetch: async (url, init) => {
-        stripeCalls.push({ url, init });
-        if (stripeDown) throw new TypeError('fetch failed');
-        stripeSession += 1;
-        return new Response(
-          JSON.stringify({ id: `cs_test_${stripeSession}`, url: `https://checkout.stripe.com/c/pay/cs_test_${stripeSession}` }),
-          { status: 200, headers: { 'content-type': 'application/json' } },
-        );
-      },
-    });
+    h = await createHarness();
     const platformToken = await h.token('elongo-platform', { sub: 'ops', realm_access: { roles: ['platform-admin'] } });
     const res = await api()
       .post('/platform/tenants')
@@ -87,25 +72,8 @@ describe('Paiements', () => {
       expect(JSON.stringify(list.body)).not.toContain(sandboxSecret);
     });
 
-    it('valide les secrets Stripe et les stocke chiffrés', async () => {
-      await api()
-        .put('/v1/payment-providers/stripe')
-        .set(as('recteur'))
-        .send({ secretKey: 'pas-une-cle', webhookSecret: stripeSecret })
-        .expect(400);
-      const res = await api()
-        .put('/v1/payment-providers/stripe')
-        .set(as('recteur'))
-        .send({ secretKey: 'sk_test_abcdefghij0123', webhookSecret: stripeSecret })
-        .expect(200);
-      expect(res.body).not.toHaveProperty('webhookSecret');
-
-      const stored = await h.admin.query<{ secrets_ciphertext: string }>(
-        `SELECT secrets_ciphertext FROM tenant_payment_providers WHERE tenant_id = $1 AND provider = 'stripe'`,
-        [tenantId],
-      );
-      expect(stored.rows[0].secrets_ciphertext).toMatch(/^v1\./);
-      expect(stored.rows[0].secrets_ciphertext).not.toContain('sk_test');
+    it('refuse un prestataire inconnu', async () => {
+      await api().put('/v1/payment-providers/stripe').set(as('recteur')).send({}).expect(404);
       await api().put('/v1/payment-providers/inconnu').set(as('recteur')).send({}).expect(404);
     });
 
@@ -143,7 +111,7 @@ describe('Paiements', () => {
       otherInvoiceId = (await api().get('/v1/me/invoices').set(as('etu2')).expect(200)).body[0].id;
 
       const options = await api().get('/v1/me/payment-options').set(as('etu')).expect(200);
-      expect(options.body.map((o: { provider: string }) => o.provider)).toEqual(['sandbox', 'stripe']);
+      expect(options.body.map((o: { provider: string }) => o.provider)).toEqual(['sandbox']);
     });
   });
 
@@ -285,98 +253,32 @@ describe('Paiements', () => {
     });
   });
 
-  describe('Carte (Stripe Checkout)', () => {
-    let paymentId: string;
-
-    it("crée une session Checkout et renvoie la page de paiement", async () => {
-      const res = await api()
-        .post(`/v1/me/invoices/${otherInvoiceId}/payments`)
-        .set({ ...as('etu2'), 'Idempotency-Key': 'cle-etu2-stripe' })
-        .send({ provider: 'stripe', returnUrl })
-        .expect(201);
-      paymentId = res.body.id;
-      expect(res.body.redirectUrl).toMatch(/^https:\/\/checkout\.stripe\.com\//);
-
-      const call = stripeCalls.at(-1)!;
-      expect(call.url).toBe('https://api.stripe.com/v1/checkout/sessions');
-      const headers = call.init!.headers as Record<string, string>;
-      expect(headers.authorization).toBe('Bearer sk_test_abcdefghij0123');
-      expect(headers['idempotency-key']).toBe(`elongo-${paymentId}`);
-      const form = new URLSearchParams(String(call.init!.body));
-      expect(form.get('line_items[0][price_data][unit_amount]')).toBe('25050');
-      expect(form.get('line_items[0][price_data][currency]')).toBe('usd');
-      expect(form.get('client_reference_id')).toBe(paymentId);
-      expect(form.get('success_url')).toBe(`${returnUrl}?paiement=${paymentId}`);
-
-      // Rejouée, la requête ne rappelle pas Stripe.
-      const before = stripeCalls.length;
-      const again = await api()
-        .post(`/v1/me/invoices/${otherInvoiceId}/payments`)
-        .set({ ...as('etu2'), 'Idempotency-Key': 'cle-etu2-stripe' })
-        .send({ provider: 'stripe', returnUrl })
-        .expect(201);
-      expect(again.body).toMatchObject({ id: paymentId, redirectUrl: res.body.redirectUrl, replayed: true });
-      expect(stripeCalls.length).toBe(before);
-    });
-
-    it('checkout.session.completed payé règle la facture', async () => {
-      const ref = (await h.admin.query<{ provider_ref: string }>('SELECT provider_ref FROM payments WHERE id = $1', [paymentId]))
-        .rows[0].provider_ref;
-      const session = { id: ref, client_reference_id: paymentId, payment_status: 'paid', amount_total: 25050, currency: 'usd' };
-      const pending = signed(
-        stripeSecret,
-        { id: 'evt_s1', type: 'checkout.session.completed', data: { object: { ...session, payment_status: 'unpaid' } } },
-        'stripe-signature',
-      );
-      expect((await api().post('/webhooks/payments/stripe/unip').set(pending.headers).send(pending.raw)).body.outcome).toBe(
-        'ignored',
-      );
-      const done = signed(
-        stripeSecret,
-        { id: 'evt_s2', type: 'checkout.session.completed', data: { object: session } },
-        'stripe-signature',
-      );
-      const res = await api().post('/webhooks/payments/stripe/unip').set(done.headers).send(done.raw).expect(200);
-      expect(res.body.outcome).toBe('applied');
-      const mine = await api().get('/v1/me/invoices').set(as('etu2')).expect(200);
-      expect(mine.body[0]).toMatchObject({ status: 'paid', paidMinor: 25050 });
-    });
-
-    it("rattrape un webhook arrivé avant l'enregistrement de la session", async () => {
-      // Facture neuve pour etu2, paiement dont la référence n'est pas encore connue.
-      const fee = await api()
-        .post('/v1/fee-structures')
-        .set(as('sga'))
-        .send({ code: 'BIB', name: 'Bibliothèque', amount: 10, currency: 'USD', dueOn: '2026-12-15' })
-        .expect(201);
-      await api().post(`/v1/fee-structures/${fee.body.id}/invoices`).set(as('sga')).expect(201);
-      const invoice = (await api().get('/v1/me/invoices').set(as('etu2')).expect(200)).body.find(
-        (i: { feeCode: string }) => i.feeCode === 'BIB',
-      );
+  describe('Robustesse', () => {
+    it("rattrape un webhook arrivé avant l'enregistrement de la référence", async () => {
       const start = await api()
-        .post(`/v1/me/invoices/${invoice.id}/payments`)
-        .set({ ...as('etu2'), 'Idempotency-Key': 'cle-etu2-bib' })
-        .send({ provider: 'stripe', returnUrl })
+        .post(`/v1/me/invoices/${otherInvoiceId}/payments`)
+        .set({ ...as('etu2'), 'Idempotency-Key': 'cle-etu2-0002' })
+        .send({ provider: 'sandbox', phone: '+243899999999', returnUrl })
         .expect(201);
       await h.admin.query('UPDATE payments SET provider_ref = NULL WHERE id = $1', [start.body.id]);
 
       const { raw, headers } = signed(
-        stripeSecret,
+        sandboxSecret,
         {
-          id: 'evt_s3',
-          type: 'checkout.session.completed',
-          data: {
-            object: { id: 'cs_test_tot', client_reference_id: start.body.id, payment_status: 'paid', amount_total: 1000, currency: 'usd' },
-          },
+          id: 'evt_tot',
+          type: 'payment.succeeded',
+          data: { reference: 'sbx_ref_tardive', payment_id: start.body.id, amount_minor: 25050, currency: 'USD' },
         },
-        'stripe-signature',
+        'x-sandbox-signature',
       );
-      expect((await api().post('/webhooks/payments/stripe/unip').set(headers).send(raw)).body.outcome).toBe('applied');
+      expect((await api().post('/webhooks/payments/sandbox/unip').set(headers).send(raw)).body.outcome).toBe('applied');
       const stored = await h.admin.query('SELECT status, provider_ref FROM payments WHERE id = $1', [start.body.id]);
-      expect(stored.rows[0]).toEqual({ status: 'succeeded', provider_ref: 'cs_test_tot' });
+      expect(stored.rows[0]).toEqual({ status: 'succeeded', provider_ref: 'sbx_ref_tardive' });
+      const mine = await api().get('/v1/me/invoices').set(as('etu2')).expect(200);
+      expect(mine.body[0]).toMatchObject({ status: 'paid', paidMinor: 25050 });
     });
 
-    it('un prestataire en panne marque le paiement échoué et répond 502', async () => {
+    it("un moyen de paiement désactivé n'est plus proposé ni utilisable", async () => {
       const fee = await api()
         .post('/v1/fee-structures')
         .set(as('sga'))
@@ -386,29 +288,18 @@ describe('Paiements', () => {
       const invoice = (await api().get('/v1/me/invoices').set(as('etu')).expect(200)).body.find(
         (i: { feeCode: string }) => i.feeCode === 'LAB',
       );
-      const pay = (key: string) =>
-        api()
-          .post(`/v1/me/invoices/${invoice.id}/payments`)
-          .set({ ...as('etu'), 'Idempotency-Key': key })
-          .send({ provider: 'stripe', returnUrl });
-      stripeDown = true;
-      const res = await pay('cle-etu-lab-1').expect(502);
-      expect(res.body.message).toBe('Stripe injoignable');
-      stripeDown = false;
-      const failed = await h.admin.query(`SELECT status FROM payments WHERE idempotency_key = 'cle-etu-lab-1'`);
-      expect(failed.rows[0].status).toBe('failed');
-      // L'échec libère la facture : un nouvel essai passe aussitôt.
-      await pay('cle-etu-lab-2').expect(201);
-
-      // Prestataire désactivé : plus de nouveau paiement par ce moyen.
-      await h.admin.query(`UPDATE tenant_payment_providers SET enabled = false WHERE tenant_id = $1 AND provider = 'stripe'`, [
-        tenantId,
-      ]);
-      const options = await api().get('/v1/me/payment-options').set(as('etu')).expect(200);
-      expect(options.body.map((o: { provider: string }) => o.provider)).toEqual(['sandbox']);
-      await h.admin.query(`UPDATE tenant_payment_providers SET enabled = true WHERE tenant_id = $1 AND provider = 'stripe'`, [
-        tenantId,
-      ]);
+      await api().put('/v1/payment-providers/sandbox').set(as('recteur')).send({ enabled: false }).expect(200);
+      expect((await api().get('/v1/me/payment-options').set(as('etu')).expect(200)).body).toEqual([]);
+      await api()
+        .post(`/v1/me/invoices/${invoice.id}/payments`)
+        .set({ ...as('etu'), 'Idempotency-Key': 'cle-etu-lab-1' })
+        .send({ provider: 'sandbox', phone: '+243812345678', returnUrl })
+        .expect(404);
+      // Réactivé : nouveau secret de webhook, l'ancien ne vaut plus.
+      const res = await api().put('/v1/payment-providers/sandbox').set(as('recteur')).send({}).expect(200);
+      const old = signed(sandboxSecret, { id: 'evt_old', type: 'payment.failed', data: {} }, 'x-sandbox-signature');
+      await api().post('/webhooks/payments/sandbox/unip').set(old.headers).send(old.raw).expect(400);
+      sandboxSecret = res.body.webhookSecret;
     });
   });
 
@@ -416,7 +307,7 @@ describe('Paiements', () => {
     it('le SG administratif voit les factures ; un étudiant non', async () => {
       await api().get('/v1/invoices').set(as('etu')).expect(403);
       const paid = await api().get('/v1/invoices?status=paid').set(as('sga')).expect(200);
-      expect(paid.body.map((i: { studentName: string }) => i.studentName).sort()).toEqual(['Nom etu', 'Nom etu2', 'Nom etu2']);
+      expect(paid.body.map((i: { studentName: string }) => i.studentName).sort()).toEqual(['Nom etu', 'Nom etu2']);
       await api().get('/v1/invoices?status=nimporte').set(as('sga')).expect(400);
     });
 
@@ -460,8 +351,6 @@ describe('Paiements', () => {
       );
       const dump = JSON.stringify(res.body);
       expect(dump).not.toContain(sandboxSecret);
-      expect(dump).not.toContain(stripeSecret);
-      expect(dump).not.toContain('sk_test_');
       await api().get('/v1/audit-logs/verify').set(as('recteur')).expect(200, { intact: true, brokenAt: null });
     });
   });

@@ -15,7 +15,7 @@ export const metadata: Metadata = { title: 'Paiements' };
 /** Même délai que l'API : un paiement en attente plus récent bloque un nouvel essai. */
 const PENDING_LOCK_MS = 30 * 60 * 1000;
 
-/** Factures de l'étudiant, paiement Mobile Money ou carte, historique. */
+/** Factures de l'étudiant, paiement Mobile Money, historique. */
 export default async function MyPaymentsPage({ searchParams }: { searchParams: Promise<{ paiement?: string }> }) {
   const { host } = await portalRequest();
   const manifest = (await getManifest(host))!;
@@ -113,7 +113,7 @@ export default async function MyPaymentsPage({ searchParams }: { searchParams: P
                       <FormattedDate iso={p.createdAt} locale={locale} />
                     </td>
                     <td>{p.feeName}</td>
-                    <td>{p.provider === 'stripe' ? 'Carte' : 'Mobile Money'}</td>
+                    <td>Mobile Money</td>
                     <td className="num">{formatMoney(p.amountMinor, p.currency, locale)}</td>
                     <td>
                       <span className={`status payment-${p.status}`}>{PAYMENT_LABELS[p.status]}</span>
@@ -204,10 +204,10 @@ function OpenInvoice({ invoice, options, locale }: { invoice: MyInvoice; options
 }
 
 function PendingPayment({ payment }: { payment: Payment }) {
-  if (payment.provider === 'stripe') {
+  if (payment.redirectUrl) {
     return (
       <div className="pending">
-        <p className="notice">Un paiement par carte est en cours.</p>
+        <p className="notice">Un paiement est en cours sur la page du prestataire.</p>
         {payment.redirectUrl && (
           <a className="button" href={payment.redirectUrl}>
             Reprendre le paiement

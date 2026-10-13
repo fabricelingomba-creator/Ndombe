@@ -113,10 +113,10 @@ frais et par étudiant) ; chaque tentative est un `payments` chez un prestataire
 
 **Prestataires.** Tous implémentent `PaymentProvider` (`prepareSecrets`,
 `createCharge`, `parseWebhook`) ; facturation, idempotence, webhooks et audit
-ne dépendent pas du prestataire. Livrés : `stripe` (carte, Stripe Checkout en
-REST, page de paiement hébergée par Stripe) et `sandbox` (Mobile Money simulé,
+ne dépendent pas du prestataire. Livré : `sandbox` (Mobile Money simulé,
 interdit en production). Un agrégateur Mobile Money réel (M-Pesa, Orange Money,
-Airtel Money) s'ajoute comme un nouvel adaptateur.
+Airtel Money) s'ajoute comme un nouvel adaptateur. Pas de paiement par carte
+pour l'instant (décision du projet).
 
 **Secrets.** Les clés de chaque université sont chiffrées en AES-256-GCM avec
 `PAYMENT_SECRETS_KEY` (hors base), l'université et le prestataire servant de
@@ -132,12 +132,12 @@ prestataire se fait hors transaction ; en cas d'échec le paiement passe à
 `failed` et l'API répond 502.
 
 **Webhooks.** `POST /webhooks/payments/:provider/:tenant`, public mais signé
-(HMAC-SHA256 de `t.corps`, format Stripe, fenêtre de 5 minutes) sur le corps
+(HMAC-SHA256 de `t.corps` horodaté, fenêtre de 5 minutes) sur le corps
 brut. Le portail relaie la même route sur son domaine, sans les cookies. Chaque
 événement est enregistré une fois (`payment_events`, unique par université,
 prestataire et identifiant) avec son issue : `applied`, `duplicate`, `ignored`,
 `unknown_payment`, `already_final` ou `amount_mismatch` (montant ou devise
 différents du paiement : rien n'est réglé). Un webhook arrivé avant
-l'enregistrement de la référence est rattaché par l'identifiant Elongo
-(`client_reference_id`). Un paiement abouti ou échoué est figé par trigger ; la
+l'enregistrement de la référence est rattaché par l'identifiant Elongo que
+l'agrégateur renvoie. Un paiement abouti ou échoué est figé par trigger ; la
 facture passe à `paid` quand les paiements aboutis couvrent son montant.

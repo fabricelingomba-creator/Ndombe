@@ -16,7 +16,6 @@ import { HealthController } from './health/health.controller';
 import { KEYCLOAK_FETCH, KeycloakAdminService } from './keycloak/keycloak-admin.service';
 import { MyPaymentsController, PaymentsAdminController, PaymentWebhooksController } from './payments/payments.controller';
 import { PaymentsService } from './payments/payments.service';
-import { PAYMENT_FETCH, PaymentFetch } from './payments/providers/provider';
 import { PlatformController } from './platform/platform.controller';
 import { TenantProvisioningService } from './platform/tenant-provisioning.service';
 import { TenancyModule } from './tenancy/tenancy.module';
@@ -65,7 +64,6 @@ export class AppModule implements NestModule {
         TenantProvisioningService,
         KeycloakAdminService,
         PaymentsService,
-        { provide: PAYMENT_FETCH, useValue: ((...args) => fetch(...args)) satisfies PaymentFetch },
         { provide: KEYCLOAK_FETCH, useValue: ((...args) => fetch(...args)) satisfies typeof fetch },
       ],
     };

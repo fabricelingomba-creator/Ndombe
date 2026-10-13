@@ -9,7 +9,6 @@ import { migrate } from '../src/db/migrate';
 import { JWT_KEY_RESOLVER } from '../src/auth/jwt-verifier.service';
 import { FetchLike, KEYCLOAK_FETCH } from '../src/keycloak/keycloak-admin.service';
 import { configureApp } from '../src/main';
-import { PAYMENT_FETCH, PaymentFetch } from '../src/payments/providers/provider';
 
 /**
  * Environnement de test : une base PostgreSQL neuve par suite, les vraies
@@ -46,8 +45,6 @@ export interface HarnessOptions {
   env?: Record<string, string>;
   /** Remplace les appels HTTP vers l'API d'administration Keycloak. */
   keycloakFetch?: FetchLike;
-  /** Remplace les appels HTTP vers les prestataires de paiement. */
-  paymentFetch?: PaymentFetch;
 }
 
 export async function createHarness(options: HarnessOptions = {}): Promise<Harness> {
@@ -85,13 +82,6 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
       options.keycloakFetch ??
         (async () => {
           throw new Error('Appel Keycloak inattendu dans un test');
-        }),
-    )
-    .overrideProvider(PAYMENT_FETCH)
-    .useValue(
-      options.paymentFetch ??
-        (async () => {
-          throw new Error('Appel prestataire de paiement inattendu dans un test');
         }),
     )
     .compile();

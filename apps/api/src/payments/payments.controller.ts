@@ -340,6 +340,7 @@ export class MyPaymentsController {
         type: `payment.${body.outcome}`,
         data: {
           reference: payment.provider_ref,
+          payment_id: paymentId,
           amount_minor: Number(payment.amount_minor),
           currency: payment.currency,
           ...(body.outcome === 'failed' ? { reason: 'Refusé sur le téléphone' } : {}),

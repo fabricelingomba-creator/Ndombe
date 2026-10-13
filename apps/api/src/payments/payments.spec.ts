@@ -3,7 +3,6 @@ import { loadEnv } from '../config/env';
 import { fromMinor, toMinor } from './money';
 import { InvalidSignatureError } from './providers/provider';
 import { signPayload, verifyTimestampedSignature } from './providers/signature';
-import { StripeProvider } from './providers/stripe.provider';
 import { openSecrets, sealSecrets } from './secret-box';
 
 describe('Montants', () => {
@@ -21,25 +20,25 @@ describe('Montants', () => {
 
 describe('Coffre à secrets (AES-256-GCM)', () => {
   const key = randomBytes(32);
-  const secrets = { secretKey: 'sk_test_123', webhookSecret: 'whsec_456' };
+  const secrets = { apiKey: 'cle_api_123', webhookSecret: 'secret_456' };
 
   it('chiffre puis déchiffre, sans laisser le secret en clair', () => {
-    const sealed = sealSecrets(key, 't1:stripe', secrets);
+    const sealed = sealSecrets(key, 't1:sandbox', secrets);
     expect(sealed).toMatch(/^v1\./);
-    expect(sealed).not.toContain('sk_test');
-    expect(openSecrets(key, 't1:stripe', sealed)).toEqual(secrets);
+    expect(sealed).not.toContain('cle_api');
+    expect(openSecrets(key, 't1:sandbox', sealed)).toEqual(secrets);
     // IV aléatoire : deux chiffrements diffèrent.
-    expect(sealSecrets(key, 't1:stripe', secrets)).not.toBe(sealed);
+    expect(sealSecrets(key, 't1:sandbox', secrets)).not.toBe(sealed);
   });
 
   it("refuse une autre clé, une autre université ou un chiffré altéré", () => {
-    const sealed = sealSecrets(key, 't1:stripe', secrets);
-    expect(() => openSecrets(randomBytes(32), 't1:stripe', sealed)).toThrow();
-    expect(() => openSecrets(key, 't2:stripe', sealed)).toThrow();
+    const sealed = sealSecrets(key, 't1:sandbox', secrets);
+    expect(() => openSecrets(randomBytes(32), 't1:sandbox', sealed)).toThrow();
+    expect(() => openSecrets(key, 't2:sandbox', sealed)).toThrow();
     const parts = sealed.split('.');
     parts[3] = Buffer.from('x'.repeat(10)).toString('base64url');
-    expect(() => openSecrets(key, 't1:stripe', parts.join('.'))).toThrow();
-    expect(() => openSecrets(key, 't1:stripe', 'v0.a.b.c')).toThrow('Secrets illisibles');
+    expect(() => openSecrets(key, 't1:sandbox', parts.join('.'))).toThrow();
+    expect(() => openSecrets(key, 't1:sandbox', 'v0.a.b.c')).toThrow('Secrets illisibles');
   });
 });
 
@@ -61,42 +60,6 @@ describe('Signature des webhooks', () => {
       'Signature invalide',
     );
     expect(() => verifyTimestampedSignature(header('s3cret', now - 301), 's3cret', body, now)).toThrow('Signature expirée');
-  });
-});
-
-describe('Stripe', () => {
-  const stripe = new StripeProvider(async () => new Response('{}'));
-  const secrets = { secretKey: 'sk_test_x', webhookSecret: 'whsec_abc' };
-  const event = (type: string, object: Record<string, unknown>) => {
-    const raw = Buffer.from(JSON.stringify({ id: 'evt_1', type, data: { object } }));
-    const t = Math.floor(Date.now() / 1000);
-    return stripe.parseWebhook(secrets, raw, { 'stripe-signature': `t=${t},v1=${signPayload(secrets.webhookSecret, t, raw)}` });
-  };
-  const paymentId = '6f1c1b8e-6a51-4b5e-9d1a-3f6b8c2d1e0f';
-
-  it('traduit les événements Checkout', () => {
-    const session = { id: 'cs_1', client_reference_id: paymentId, amount_total: 1000, currency: 'usd' };
-    expect(event('checkout.session.completed', { ...session, payment_status: 'paid' })).toMatchObject({
-      outcome: 'succeeded',
-      providerRef: 'cs_1',
-      paymentId,
-      amountMinor: 1000,
-      currency: 'USD',
-    });
-    expect(event('checkout.session.completed', { ...session, payment_status: 'unpaid' }).outcome).toBe('ignored');
-    expect(event('checkout.session.async_payment_succeeded', session).outcome).toBe('succeeded');
-    expect(event('checkout.session.expired', session)).toMatchObject({ outcome: 'failed', failureReason: 'Session de paiement expirée' });
-    expect(event('customer.created', {}).outcome).toBe('ignored');
-    expect(event('checkout.session.completed', { ...session, client_reference_id: 'pas-un-uuid' }).paymentId).toBeUndefined();
-  });
-
-  it('valide le format des secrets saisis', () => {
-    expect(() => stripe.prepareSecrets({ secretKey: 'pk_test_abcdefghijkl', webhookSecret: 'whsec_abcdefghijkl' })).toThrow();
-    expect(() => stripe.prepareSecrets({ secretKey: 'sk_test_abcdefghijkl', webhookSecret: 'abc' })).toThrow();
-    expect(stripe.prepareSecrets({ secretKey: 'sk_test_abcdefghijkl', webhookSecret: 'whsec_abcdefghijkl', x: 1 })).toEqual({
-      secretKey: 'sk_test_abcdefghijkl',
-      webhookSecret: 'whsec_abcdefghijkl',
-    });
   });
 });
 

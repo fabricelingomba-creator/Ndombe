@@ -141,7 +141,7 @@ export interface TranscriptVerification {
 
 export type InvoiceStatus = 'open' | 'paid' | 'cancelled';
 export type PaymentStatus = 'pending' | 'succeeded' | 'failed';
-export type PaymentProviderKey = 'sandbox' | 'stripe';
+export type PaymentProviderKey = 'sandbox';
 
 export interface Payment {
   id: string;

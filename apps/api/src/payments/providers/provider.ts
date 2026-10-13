@@ -1,6 +1,6 @@
 import type { Currency } from '../money';
 
-export const PROVIDER_KEYS = ['sandbox', 'stripe'] as const;
+export const PROVIDER_KEYS = ['sandbox'] as const;
 export type ProviderKey = (typeof PROVIDER_KEYS)[number];
 
 export interface ChargeRequest {
@@ -11,13 +11,13 @@ export interface ChargeRequest {
   description: string;
   /** Numéro Mobile Money (E.164), pour les prestataires qui envoient une demande au téléphone. */
   phone?: string;
-  /** Page du portail où revenir après un paiement par carte. */
+  /** Page du portail où revenir après un paiement sur la page du prestataire. */
   returnUrl: string;
 }
 
 export interface ChargeResult {
   providerRef: string;
-  /** Page de paiement hébergée par le prestataire (carte). */
+  /** Page de paiement hébergée par le prestataire, s'il en propose une. */
   redirectUrl?: string;
   /** Consigne à afficher à l'étudiant (Mobile Money). */
   instructions?: string;
@@ -54,6 +54,3 @@ export interface PaymentProvider {
   /** Vérifie la signature puis traduit l'événement ; lève InvalidSignatureError sinon. */
   parseWebhook(secrets: Record<string, string>, rawBody: Buffer, headers: Record<string, string | undefined>): ProviderEvent;
 }
-
-export const PAYMENT_FETCH = Symbol('PAYMENT_FETCH');
-export type PaymentFetch = (input: string, init?: RequestInit) => Promise<Response>;

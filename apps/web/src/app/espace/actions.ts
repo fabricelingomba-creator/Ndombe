@@ -152,7 +152,7 @@ export async function startPayment(invoiceId: string, _prev: ActionResult, form:
     { 'idempotency-key': idempotencyKey },
   );
   if (!res.ok) return { ok: false, message: res.message };
-  // Carte : la page de paiement est hébergée par le prestataire.
+  // Prestataire qui héberge sa propre page de paiement : on y envoie l'étudiant.
   if (res.data.redirectUrl && res.data.status === 'pending') redirect(res.data.redirectUrl);
   revalidatePath('/espace/paiements');
   return { ok: true, message: res.data.instructions ?? 'Paiement lancé.' };
@@ -203,19 +203,15 @@ export async function issueInvoices(feeId: string, _prev: ActionResult, _form: F
 }
 
 export async function configurePaymentProvider(
-  provider: 'sandbox' | 'stripe',
+  provider: 'sandbox',
   _prev: ActionResult,
-  form: FormData,
+  _form: FormData,
 ): Promise<ActionResult> {
-  if (!['sandbox', 'stripe'].includes(provider)) return { ok: false, message: 'Prestataire invalide.' };
+  if (provider !== 'sandbox') return { ok: false, message: 'Prestataire invalide.' };
   const s = await session();
   if (!s) return EXPIRED;
-  const body =
-    provider === 'stripe'
-      ? { secretKey: String(form.get('secretKey') ?? '').trim(), webhookSecret: String(form.get('webhookSecret') ?? '').trim() }
-      : {};
-  const res = await apiSend(s.host, `/v1/payment-providers/${provider}`, s.token, 'PUT', body);
+  const res = await apiSend(s.host, `/v1/payment-providers/${provider}`, s.token, 'PUT', {});
   if (!res.ok) return { ok: false, message: res.status === 404 ? 'Ce moyen de paiement n’est pas disponible sur cette plateforme.' : res.message };
   revalidatePath('/espace/finances');
-  return { ok: true, message: provider === 'stripe' ? 'Stripe activé. Les clés sont stockées chiffrées.' : 'Mobile Money simulé activé.' };
+  return { ok: true, message: 'Mobile Money simulé activé.' };
 }

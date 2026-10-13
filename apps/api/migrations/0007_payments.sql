@@ -12,7 +12,7 @@
 
 CREATE TABLE tenant_payment_providers (
   tenant_id           uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  provider            text NOT NULL CHECK (provider IN ('sandbox', 'stripe')),
+  provider            text NOT NULL CHECK (provider IN ('sandbox')),
   enabled             boolean NOT NULL DEFAULT true,
   secrets_ciphertext  text NOT NULL,
   updated_at          timestamptz NOT NULL DEFAULT now(),
@@ -58,14 +58,14 @@ CREATE TABLE payments (
   tenant_id        uuid NOT NULL,
   invoice_id       uuid NOT NULL,
   student_user_id  uuid NOT NULL,
-  provider         text NOT NULL CHECK (provider IN ('sandbox', 'stripe')),
+  provider         text NOT NULL CHECK (provider IN ('sandbox')),
   amount_minor     bigint NOT NULL CHECK (amount_minor > 0),
   currency         text NOT NULL CHECK (currency IN ('CDF', 'USD')),
   status           text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'succeeded', 'failed')),
   -- Clé fournie par le client : rejouer la même requête ne crée pas un second paiement.
   idempotency_key  text NOT NULL CHECK (length(idempotency_key) BETWEEN 8 AND 128),
   provider_ref     text,
-  -- Page de paiement du prestataire (carte), renvoyée telle quelle si la requête est rejouée.
+  -- Page de paiement du prestataire (s'il en a une), renvoyée telle quelle si la requête est rejouée.
   redirect_url     text,
   phone            text CHECK (phone ~ '^\+[1-9][0-9]{7,14}$'),
   failure_reason   text,
