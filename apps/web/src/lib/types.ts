@@ -41,6 +41,7 @@ export interface Me {
   fullName: string;
   roles: string[];
   permissions: string[];
+  grants: { permission: string; scope: { type: string; id: string | null } }[];
 }
 
 export type GradesStatus = 'draft' | 'submitted' | 'returned' | 'approved' | 'published';
@@ -108,4 +109,32 @@ export interface ReviewItem {
   submittedBy: string | null;
   departmentName: string;
   enrolledCount: number;
+}
+
+export type TranscriptStatus = 'requested' | 'validated' | 'rejected';
+
+export interface Transcript {
+  id: string;
+  status: TranscriptStatus;
+  requestedAt: string;
+  decidedAt: string | null;
+  rejectReason: string | null;
+  verificationCode: string | null;
+}
+
+export interface TranscriptRequest extends Transcript {
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+}
+
+export interface TranscriptVerification {
+  valid: true;
+  university: string;
+  verificationCode: string;
+  studentName: string;
+  issuedAt: string;
+  creditsEarned: number | null;
+  average: number | null;
+  contentHash: string;
 }

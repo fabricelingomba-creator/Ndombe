@@ -125,3 +125,12 @@ textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border
 .status-returned { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
 .status-approved { background: #fefce8; color: #854d0e; border-color: #fde68a; }
 .status-published { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
+
+/* Vérification publique d'un relevé. */
+.verify-form { display: grid; gap: 8px; margin: 24px 0; }
+.verify-form input { padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); font: inherit; letter-spacing: .08em; text-transform: uppercase; min-width: 0; flex: 1 1 220px; }
+.verify-form input:focus-visible { outline: 3px solid var(--brand-secondary); outline-offset: 1px; }
+.verify-result dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 12px 0; }
+.verify-result dt { font-weight: 600; }
+.verify-result dd { margin: 0; }
+.hash { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; overflow-wrap: anywhere; }

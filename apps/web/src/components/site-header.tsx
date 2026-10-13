@@ -38,7 +38,8 @@ export function SiteFooter({ manifest }: { manifest: Manifest }) {
   return (
     <footer className="site-footer">
       <div className="container">
-        © {new Date().getFullYear()} {manifest.name} · Portail propulsé par Elongo
+        © {new Date().getFullYear()} {manifest.name} · <Link href="/verifier">Vérifier un relevé</Link> · Portail propulsé par
+        Elongo
       </div>
     </footer>
   );

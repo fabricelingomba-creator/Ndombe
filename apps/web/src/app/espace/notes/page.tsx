@@ -1,9 +1,13 @@
 import type { Metadata } from 'next';
+import { ActionForm, SubmitButton } from '@/components/action-form';
+import { FormattedDate } from '@/components/date';
 import { AccessDenied, SpaceShell } from '@/components/space-shell';
-import { getManifest, getMyGrades } from '@/lib/api';
+import { getManifest, getMyGrades, getMyTranscripts } from '@/lib/api';
 import { requireUser } from '@/lib/auth';
 import { formatScore, PASSING_SCORE } from '@/lib/grades';
 import { portalRequest } from '@/lib/request';
+import type { Transcript } from '@/lib/types';
+import { requestTranscript } from '../actions';
 
 export const metadata: Metadata = { title: 'Mes notes' };
 
@@ -19,7 +23,11 @@ export default async function MyGradesPage() {
       </SpaceShell>
     );
   }
-  const terms = await getMyGrades(host, accessToken);
+  const canDownload = me.permissions.includes('self:transcripts:download');
+  const [terms, transcripts] = await Promise.all([
+    getMyGrades(host, accessToken),
+    canDownload ? getMyTranscripts(host, accessToken) : Promise.resolve([]),
+  ]);
 
   return (
     <SpaceShell manifest={manifest} title="Notes et relevés">
@@ -67,7 +75,66 @@ export default async function MyGradesPage() {
           </div>
         </section>
       ))}
-      <p className="small muted">Le relevé officiel au format PDF sera disponible prochainement.</p>
+      {canDownload && <OfficialTranscripts transcripts={transcripts} hasGrades={terms.length > 0} locale={manifest.locale} />}
     </SpaceShell>
+  );
+}
+
+const TRANSCRIPT_LABELS: Record<Transcript['status'], string> = {
+  requested: 'En attente de validation',
+  validated: 'Émis',
+  rejected: 'Refusé',
+};
+
+/** Relevés officiels : demande au secrétariat, puis téléchargement du PDF signé. */
+function OfficialTranscripts({ transcripts, hasGrades, locale }: { transcripts: Transcript[]; hasGrades: boolean; locale: string }) {
+  const pending = transcripts.some((t) => t.status === 'requested');
+  return (
+    <section className="queue" aria-labelledby="releves">
+      <h2 id="releves">Relevés officiels</h2>
+      <p className="small muted">
+        Le relevé officiel est validé par le secrétariat académique. Il porte un code que tout destinataire peut vérifier
+        sur la page <a href="/verifier">Vérifier un relevé</a>.
+      </p>
+      {pending && <p className="notice">Votre demande est en attente de validation par le secrétariat académique.</p>}
+      {hasGrades && !pending && (
+        <ActionForm action={requestTranscript}>
+          <SubmitButton>Demander un relevé officiel</SubmitButton>
+        </ActionForm>
+      )}
+      {transcripts.length > 0 && (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Demandé le</th>
+                <th scope="col">État</th>
+                <th scope="col">Document</th>
+              </tr>
+            </thead>
+            <tbody>
+              {transcripts.map((t) => (
+                <tr key={t.id}>
+                  <td>
+                    <FormattedDate iso={t.requestedAt} locale={locale} />
+                  </td>
+                  <td>
+                    {TRANSCRIPT_LABELS[t.status]}
+                    {t.rejectReason && <span className="small muted"> · {t.rejectReason}</span>}
+                  </td>
+                  <td>
+                    {t.status === 'validated' ? (
+                      <a href={`/espace/releves/${t.id}/pdf`}>Télécharger le PDF ({t.verificationCode})</a>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }

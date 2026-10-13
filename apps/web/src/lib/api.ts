@@ -11,6 +11,9 @@ import type {
   ReviewItem,
   TeachingOffering,
   TermGrades,
+  Transcript,
+  TranscriptRequest,
+  TranscriptVerification,
 } from './types';
 
 export class ApiError extends Error {
@@ -67,6 +70,28 @@ export async function getGradeSheet(host: string, token: string, offeringId: str
     if (err instanceof ApiError && [400, 403, 404].includes(err.status)) return null;
     throw err;
   }
+}
+
+export const getMyTranscripts = (host: string, token: string) => apiFetch<Transcript[]>(host, '/v1/me/transcripts', token);
+export const getTranscriptQueue = (host: string, token: string, status: 'requested' | 'validated') =>
+  apiFetch<TranscriptRequest[]>(host, `/v1/transcripts?status=${status}`, token);
+
+/** Vérification publique d'un code imprimé sur un relevé ; null si inconnu. */
+export async function verifyTranscript(host: string, code: string): Promise<TranscriptVerification | null> {
+  try {
+    return await apiFetch<TranscriptVerification>(host, `/v1/public/transcripts/verify/${encodeURIComponent(code)}`);
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
+  }
+}
+
+/** Fichier binaire (PDF) de l'API, relayé tel quel au navigateur. */
+export async function apiDownload(host: string, path: string, token: string): Promise<Response> {
+  return fetch(`${config.apiUrl}${path}`, {
+    headers: { 'x-elongo-host': host, authorization: `Bearer ${token}`, accept: 'application/pdf' },
+    cache: 'no-store',
+  });
 }
 
 export type SendResult<T> = { ok: true; data: T } | { ok: false; status: number; message: string };

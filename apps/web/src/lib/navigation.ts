@@ -11,6 +11,13 @@ export interface NavItem {
   anyOf: string[];
   /** Module pas encore livré : affiché comme « bientôt ». */
   upcoming?: boolean;
+  /** La permission doit être détenue sur toute l'université (pas seulement une faculté). */
+  universityWide?: boolean;
+}
+
+export interface Grant {
+  permission: string;
+  scope: { type: string; id: string | null };
 }
 
 export interface NavSection {
@@ -45,6 +52,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { key: 'structure', label: 'Facultés et départements', href: '/espace/structure', anyOf: ['academic:structure:write'], upcoming: true },
       { key: 'grade-approval', label: 'Validation des notes', href: '/espace/validation-notes', anyOf: ['grades:approve', 'grades:publish'] },
+      { key: 'transcripts', label: 'Relevés officiels', href: '/espace/releves-validation', anyOf: ['transcripts:validate'], universityWide: true },
       { key: 'finance', label: 'Finances', href: '/espace/finances', anyOf: ['finance:read'], upcoming: true },
       { key: 'research', label: 'Recherche', href: '/espace/recherche', anyOf: ['research:labs:manage'], upcoming: true },
       { key: 'audit', label: "Journal d'audit", href: '/espace/audit', anyOf: ['audit:read'], upcoming: true },
@@ -52,10 +60,13 @@ export const NAV_SECTIONS: NavSection[] = [
   },
 ];
 
-export function navFor(permissions: readonly string[]): NavSection[] {
+export function navFor(permissions: readonly string[], grants: readonly Grant[] = []): NavSection[] {
   const owned = new Set(permissions);
+  const universityWide = new Set(grants.filter((g) => g.scope.type === 'university').map((g) => g.permission));
   return NAV_SECTIONS.map((section) => ({
     ...section,
-    items: section.items.filter((item) => item.anyOf.some((p) => owned.has(p))),
+    items: section.items.filter((item) =>
+      item.anyOf.some((p) => (item.universityWide ? universityWide.has(p) : owned.has(p))),
+    ),
   })).filter((section) => section.items.length > 0);
 }

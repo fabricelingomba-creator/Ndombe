@@ -23,6 +23,7 @@ ce dépôt en reprend les décisions dans [docs/architecture.md](docs/architectu
 | Tests d'isolation entre universités | `apps/api/test` |
 | Portail web à la marque (Next.js) : accueil, connexion, espace | `apps/web` |
 | Cours, inscriptions, notes et circuit de validation | `apps/api/src/academic`, `apps/web/src/app/espace` |
+| Relevés officiels en PDF, vérifiables par code | `apps/api/src/transcripts`, `apps/web/src/app/verifier` |
 
 ## Démarrer en local
 
