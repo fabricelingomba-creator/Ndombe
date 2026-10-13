@@ -90,6 +90,11 @@ describe('Isolation multi-tenant', () => {
       expect(res.body.slug).toBe('unib');
     });
 
+    it('accepte le domaine du portail transmis par le serveur web', async () => {
+      const res = await api().get('/v1/tenant/manifest').set('Host', 'api:3000').set('x-elongo-host', 'portail.unib.ac.cd').expect(200);
+      expect(res.body.slug).toBe('unib');
+    });
+
     it("le nom d'hôte prime sur l'en-tête", async () => {
       const res = await api().get('/v1/tenant/manifest').set('Host', tenants.a.host).set('x-elongo-tenant', 'unib').expect(200);
       expect(res.body.slug).toBe('unia');

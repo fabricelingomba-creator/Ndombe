@@ -49,3 +49,18 @@ attribution porte une portée ; une portée faculté couvre ses départements.
 `audit_log` : `INSERT` seul pour les rôles applicatifs, trigger qui refuse
 `UPDATE` et `DELETE` même au propriétaire, et chaîne de hash SHA-256 par
 université vérifiable via `GET /v1/audit-logs/verify`.
+
+## Portail web
+
+`apps/web` (Next.js, rendu serveur) sert toutes les universités. Le domaine de
+la requête est transmis à l'API dans l'en-tête `x-elongo-host`, qui désigne
+l'université ; les couleurs de la marque deviennent des variables CSS.
+
+Connexion : flux OIDC « authorization code » avec PKCE vers le realm de
+l'université, échange du code côté serveur. Les jetons sont gardés dans deux
+cookies chiffrés (AES-256-GCM), `httpOnly`, liés au domaine ; le navigateur ne
+voit jamais de jeton. Le jeton d'accès (15 min) est renouvelé par
+`/auth/refresh` grâce au jeton de rafraîchissement.
+
+Les menus de l'espace connecté sont calculés à partir des permissions
+(`src/lib/navigation.ts`), comme le fera l'app mobile.

@@ -6,6 +6,8 @@ import { AuthModule } from './auth/auth.module';
 import { MeController } from './auth/me.controller';
 import { BrandingController } from './branding/branding.controller';
 import { ENV, Env } from './config/env';
+import { AnnouncementsController } from './content/announcements.controller';
+import { PublicHomepageController } from './content/public-homepage.controller';
 import { DatabaseModule } from './db/database.module';
 import { HealthController } from './health/health.controller';
 import { KEYCLOAK_FETCH, KeycloakAdminService } from './keycloak/keycloak-admin.service';
@@ -33,6 +35,8 @@ export class AppModule implements NestModule {
         MeController,
         FacultiesController,
         AuditController,
+        AnnouncementsController,
+        PublicHomepageController,
         PlatformController,
       ],
       providers: [

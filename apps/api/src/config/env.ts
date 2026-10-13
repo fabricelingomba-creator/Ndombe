@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+/** Une variable présente mais vide (KEY= dans un .env) vaut « non définie ». */
+const optionalString = z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).optional());
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
@@ -20,8 +23,8 @@ const envSchema = z.object({
    * Client de service Keycloak (realm master, client credentials) qui crée les
    * realms des universités. Sans lui, l'onboarding n'écrit que la base.
    */
-  KEYCLOAK_ADMIN_CLIENT_ID: z.string().min(1).optional(),
-  KEYCLOAK_ADMIN_CLIENT_SECRET: z.string().min(1).optional(),
+  KEYCLOAK_ADMIN_CLIENT_ID: optionalString,
+  KEYCLOAK_ADMIN_CLIENT_SECRET: optionalString,
 });
 
 export type Env = z.infer<typeof envSchema>;

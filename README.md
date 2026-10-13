@@ -8,7 +8,7 @@ Le document d'architecture (stack, isolation des données, RBAC, paiements,
 notifications, mobile, feuille de route) est tenu dans le projet Claude ;
 ce dépôt en reprend les décisions dans [docs/architecture.md](docs/architecture.md).
 
-## État : phase 0, fondations
+## État : phase 0 terminée, phase 1 en cours
 
 | Brique | Où |
 | --- | --- |
@@ -21,6 +21,7 @@ ce dépôt en reprend les décisions dans [docs/architecture.md](docs/architectu
 | Journal d'audit en ajout seul, chaîné par hash | `apps/api/src/audit` |
 | Onboarding d'une université (Super Admin) | `apps/api/src/platform` |
 | Tests d'isolation entre universités | `apps/api/test` |
+| Portail web à la marque (Next.js) : accueil, connexion, espace | `apps/web` |
 
 ## Démarrer en local
 
@@ -40,6 +41,16 @@ Vérifier :
 ```bash
 curl http://demo.elongo.localhost:3000/v1/tenant/manifest
 ```
+
+Portail web, dans un second terminal :
+
+```bash
+cp apps/web/.env.example apps/web/.env.local
+pnpm --filter @elongo/web dev        # http://demo.elongo.localhost:3001
+```
+
+Le portail lit le domaine de la requête et demande à l'API quelle université
+servir ; aucune configuration par université n'est nécessaire côté web.
 
 Comptes Keycloak de développement (http://localhost:8080) :
 
