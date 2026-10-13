@@ -78,3 +78,41 @@ export async function reviewGrades(
   const done = { approve: 'Notes approuvées.', return: 'Feuille renvoyée au professeur.', publish: 'Notes publiées aux étudiants.' };
   return { ok: true, message: done[decision] };
 }
+
+export async function requestTranscript(_prev: ActionResult, _form: FormData): Promise<ActionResult> {
+  const s = await session();
+  if (!s) return EXPIRED;
+  const res = await apiSend(s.host, '/v1/me/transcripts', s.token, 'POST');
+  if (!res.ok) return { ok: false, message: res.message };
+  revalidatePath('/espace/notes');
+  return { ok: true, message: 'Demande envoyée au secrétariat académique.' };
+}
+
+export async function decideTranscript(
+  transcriptId: string,
+  decision: 'validate' | 'reject',
+  _prev: ActionResult,
+  form: FormData,
+): Promise<ActionResult> {
+  // Les arguments liés transitent par le navigateur : on les revalide ici.
+  if (!UUID.test(transcriptId) || !['validate', 'reject'].includes(decision)) {
+    return { ok: false, message: 'Action invalide.' };
+  }
+  const s = await session();
+  if (!s) return EXPIRED;
+  const reason = String(form.get('reason') ?? '').trim();
+  if (decision === 'reject' && reason.length < 3) return { ok: false, message: 'Indiquez le motif du refus.' };
+  const res = await apiSend<{ verificationCode?: string }>(
+    s.host,
+    `/v1/transcripts/${transcriptId}/${decision}`,
+    s.token,
+    'POST',
+    decision === 'reject' ? { reason } : undefined,
+  );
+  if (!res.ok) return { ok: false, message: res.message };
+  revalidatePath('/espace/releves-validation');
+  return {
+    ok: true,
+    message: decision === 'validate' ? `Relevé émis (code ${res.data.verificationCode}).` : 'Demande refusée.',
+  };
+}

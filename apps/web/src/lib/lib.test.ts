@@ -54,6 +54,13 @@ describe('navFor', () => {
   it('ne montre rien sans permission', () => {
     expect(navFor([])).toEqual([]);
   });
+
+  it("réserve les relevés officiels à une permission détenue sur toute l'université", () => {
+    const keys = (grants: { permission: string; scope: { type: string; id: string | null } }[]) =>
+      navFor(grants.map((g) => g.permission), grants).flatMap((s) => s.items.map((i) => i.key));
+    expect(keys([{ permission: 'transcripts:validate', scope: { type: 'faculty', id: 'f1' } }])).not.toContain('transcripts');
+    expect(keys([{ permission: 'transcripts:validate', scope: { type: 'university', id: null } }])).toContain('transcripts');
+  });
 });
 
 describe('thème', () => {

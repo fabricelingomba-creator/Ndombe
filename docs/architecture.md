@@ -88,3 +88,18 @@ brouillon → soumise → approuvée → publiée
   pondérée par les crédits et les crédits acquis (note ≥ 10/20).
 - Une fois soumise, une note n'est plus modifiable : l'API le refuse et un
   trigger PostgreSQL le refuse aussi. Chaque étape est tracée dans l'audit.
+
+## Relevés officiels
+
+L'étudiant demande un relevé ; le secrétariat académique (permission
+`transcripts:validate` sur toute l'université) le valide ou le refuse avec un
+motif. À la validation, les notes publiées sont figées dans `transcripts.snapshot`
+avec leur empreinte SHA-256 (JSON canonique) et un code de vérification de
+12 caractères (base 32 de Crockford, 60 bits). Un trigger interdit ensuite toute
+modification ; une note corrigée plus tard demande un nouveau relevé.
+
+Le PDF (pdfkit, aux couleurs de l'université) est rendu à la demande à partir du
+contenu figé : il porte le code, l'empreinte et l'adresse de la page publique
+`/verifier`. Cette page appelle `GET /v1/public/transcripts/verify/:code`, qui
+passe par la fonction `app.verify_transcript` (SECURITY DEFINER, quelques champs
+seulement) et ne répond que pour l'université du domaine appelé.

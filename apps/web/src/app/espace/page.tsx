@@ -29,7 +29,7 @@ export default async function SpacePage() {
         throw err;
       })
     : [];
-  const sections = navFor(me.permissions);
+  const sections = navFor(me.permissions, me.grants);
 
   return (
     <>

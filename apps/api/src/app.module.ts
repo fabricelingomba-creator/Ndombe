@@ -17,6 +17,11 @@ import { KEYCLOAK_FETCH, KeycloakAdminService } from './keycloak/keycloak-admin.
 import { PlatformController } from './platform/platform.controller';
 import { TenantProvisioningService } from './platform/tenant-provisioning.service';
 import { TenancyModule } from './tenancy/tenancy.module';
+import {
+  MyTranscriptsController,
+  TranscriptsController,
+  TranscriptVerificationController,
+} from './transcripts/transcripts.controller';
 import { TenantMiddleware } from './tenancy/tenant.middleware';
 
 @Module({})
@@ -42,6 +47,9 @@ export class AppModule implements NestModule {
         OfferingsController,
         MyAcademicsController,
         GradeSheetsController,
+        MyTranscriptsController,
+        TranscriptsController,
+        TranscriptVerificationController,
         AuditController,
         AnnouncementsController,
         PublicHomepageController,
