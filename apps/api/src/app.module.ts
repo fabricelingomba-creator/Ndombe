@@ -8,6 +8,7 @@ import { BrandingController } from './branding/branding.controller';
 import { ENV, Env } from './config/env';
 import { DatabaseModule } from './db/database.module';
 import { HealthController } from './health/health.controller';
+import { KEYCLOAK_FETCH, KeycloakAdminService } from './keycloak/keycloak-admin.service';
 import { PlatformController } from './platform/platform.controller';
 import { TenantProvisioningService } from './platform/tenant-provisioning.service';
 import { TenancyModule } from './tenancy/tenancy.module';
@@ -34,7 +35,11 @@ export class AppModule implements NestModule {
         AuditController,
         PlatformController,
       ],
-      providers: [TenantProvisioningService],
+      providers: [
+        TenantProvisioningService,
+        KeycloakAdminService,
+        { provide: KEYCLOAK_FETCH, useValue: ((...args) => fetch(...args)) satisfies typeof fetch },
+      ],
     };
   }
 

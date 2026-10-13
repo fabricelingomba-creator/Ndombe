@@ -7,6 +7,7 @@ import { AppModule } from '../src/app.module';
 import { Env, loadEnv } from '../src/config/env';
 import { migrate } from '../src/db/migrate';
 import { JWT_KEY_RESOLVER } from '../src/auth/jwt-verifier.service';
+import { FetchLike, KEYCLOAK_FETCH } from '../src/keycloak/keycloak-admin.service';
 import { configureApp } from '../src/main';
 
 /**
@@ -40,7 +41,13 @@ function withDb(serverUrl: string, db: string, user?: string, password?: string)
   return url.toString();
 }
 
-export async function createHarness(): Promise<Harness> {
+export interface HarnessOptions {
+  env?: Record<string, string>;
+  /** Remplace les appels HTTP vers l'API d'administration Keycloak. */
+  keycloakFetch?: FetchLike;
+}
+
+export async function createHarness(options: HarnessOptions = {}): Promise<Harness> {
   const dbName = `elongo_test_${randomBytes(4).toString('hex')}`;
   const server = new Client({ connectionString: withDb(SERVER_URL, 'postgres') });
   await server.connect();
@@ -60,6 +67,7 @@ export async function createHarness(): Promise<Harness> {
     KEYCLOAK_URL: 'https://auth.elongo.test',
     BASE_DOMAIN: 'elongo.test',
     TENANT_CACHE_TTL_MS: '0',
+    ...options.env,
   });
 
   const { privateKey, publicKey } = await generateKeyPair('RS256');
@@ -67,6 +75,13 @@ export async function createHarness(): Promise<Harness> {
   const moduleRef = await Test.createTestingModule({ imports: [AppModule.forRoot(env)] })
     .overrideProvider(JWT_KEY_RESOLVER)
     .useValue(() => async () => publicKey)
+    .overrideProvider(KEYCLOAK_FETCH)
+    .useValue(
+      options.keycloakFetch ??
+        (async () => {
+          throw new Error('Appel Keycloak inattendu dans un test');
+        }),
+    )
     .compile();
   const app = configureApp(moduleRef.createNestApplication({ logger: false }), env);
   await app.init();
