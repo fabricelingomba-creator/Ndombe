@@ -14,6 +14,9 @@ import { PublicHomepageController } from './content/public-homepage.controller';
 import { DatabaseModule } from './db/database.module';
 import { HealthController } from './health/health.controller';
 import { KEYCLOAK_FETCH, KeycloakAdminService } from './keycloak/keycloak-admin.service';
+import { MyPaymentsController, PaymentsAdminController, PaymentWebhooksController } from './payments/payments.controller';
+import { PaymentsService } from './payments/payments.service';
+import { PAYMENT_FETCH, PaymentFetch } from './payments/providers/provider';
 import { PlatformController } from './platform/platform.controller';
 import { TenantProvisioningService } from './platform/tenant-provisioning.service';
 import { TenancyModule } from './tenancy/tenancy.module';
@@ -53,21 +56,31 @@ export class AppModule implements NestModule {
         AuditController,
         AnnouncementsController,
         PublicHomepageController,
+        PaymentsAdminController,
+        MyPaymentsController,
+        PaymentWebhooksController,
         PlatformController,
       ],
       providers: [
         TenantProvisioningService,
         KeycloakAdminService,
+        PaymentsService,
+        { provide: PAYMENT_FETCH, useValue: ((...args) => fetch(...args)) satisfies PaymentFetch },
         { provide: KEYCLOAK_FETCH, useValue: ((...args) => fetch(...args)) satisfies typeof fetch },
       ],
     };
   }
 
   configure(consumer: MiddlewareConsumer) {
-    // Toutes les routes appartiennent à une université, sauf la santé et le portail plateforme.
+    // Toutes les routes appartiennent à une université, sauf la santé, le portail plateforme
+    // et les webhooks de paiement (l'université y est désignée par l'URL, pas par l'hôte).
     consumer
       .apply(TenantMiddleware)
-      .exclude({ path: 'health', method: RequestMethod.ALL }, { path: 'platform/{*path}', method: RequestMethod.ALL })
+      .exclude(
+        { path: 'health', method: RequestMethod.ALL },
+        { path: 'platform/{*path}', method: RequestMethod.ALL },
+        { path: 'webhooks/{*path}', method: RequestMethod.ALL },
+      )
       .forRoutes('*');
   }
 }

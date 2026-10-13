@@ -103,3 +103,41 @@ contenu figé : il porte le code, l'empreinte et l'adresse de la page publique
 `/verifier`. Cette page appelle `GET /v1/public/transcripts/verify/:code`, qui
 passe par la fonction `app.verify_transcript` (SECURITY DEFINER, quelques champs
 seulement) et ne répond que pour l'université du domaine appelé.
+
+## Paiements
+
+Les montants sont stockés en unités mineures (`bigint`, centimes) avec leur
+devise (`CDF`, `USD`) ; aucun total n'additionne deux devises. Un frais
+(`fee_structures`) est facturé à chaque étudiant (`invoices`, une facture par
+frais et par étudiant) ; chaque tentative est un `payments` chez un prestataire.
+
+**Prestataires.** Tous implémentent `PaymentProvider` (`prepareSecrets`,
+`createCharge`, `parseWebhook`) ; facturation, idempotence, webhooks et audit
+ne dépendent pas du prestataire. Livrés : `stripe` (carte, Stripe Checkout en
+REST, page de paiement hébergée par Stripe) et `sandbox` (Mobile Money simulé,
+interdit en production). Un agrégateur Mobile Money réel (M-Pesa, Orange Money,
+Airtel Money) s'ajoute comme un nouvel adaptateur.
+
+**Secrets.** Les clés de chaque université sont chiffrées en AES-256-GCM avec
+`PAYMENT_SECRETS_KEY` (hors base), l'université et le prestataire servant de
+données authentifiées : un chiffré copié vers une autre université ne se
+déchiffre pas. Ni l'API ni l'audit ne renvoient un secret enregistré.
+
+**Idempotence et double paiement.** `POST /v1/me/invoices/:id/payments` exige
+l'en-tête `Idempotency-Key` (unique par université) : rejouée, la requête renvoie
+le même paiement sans rappeler le prestataire. Le portail génère la clé au rendu
+du formulaire, un double clic est donc sans effet. Un paiement en attente de
+moins de 30 minutes bloque toute nouvelle tentative sur la facture. L'appel au
+prestataire se fait hors transaction ; en cas d'échec le paiement passe à
+`failed` et l'API répond 502.
+
+**Webhooks.** `POST /webhooks/payments/:provider/:tenant`, public mais signé
+(HMAC-SHA256 de `t.corps`, format Stripe, fenêtre de 5 minutes) sur le corps
+brut. Le portail relaie la même route sur son domaine, sans les cookies. Chaque
+événement est enregistré une fois (`payment_events`, unique par université,
+prestataire et identifiant) avec son issue : `applied`, `duplicate`, `ignored`,
+`unknown_payment`, `already_final` ou `amount_mismatch` (montant ou devise
+différents du paiement : rien n'est réglé). Un webhook arrivé avant
+l'enregistrement de la référence est rattaché par l'identifiant Elongo
+(`client_reference_id`). Un paiement abouti ou échoué est figé par trigger ; la
+facture passe à `paid` quand les paiements aboutis couvrent son montant.

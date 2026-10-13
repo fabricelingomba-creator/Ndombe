@@ -25,6 +25,19 @@ const envSchema = z.object({
    */
   KEYCLOAK_ADMIN_CLIENT_ID: optionalString,
   KEYCLOAK_ADMIN_CLIENT_SECRET: optionalString,
+  /**
+   * Clé AES-256 (32 octets en base64) qui chiffre les secrets des prestataires
+   * de paiement de chaque université. Sans elle, les paiements sont désactivés.
+   */
+  PAYMENT_SECRETS_KEY: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z
+      .string()
+      .refine((v) => Buffer.from(v, 'base64').length === 32, 'doit contenir 32 octets encodés en base64')
+      .optional(),
+  ),
+  /** Prestataire « sandbox » (Mobile Money simulé) : jamais en production. */
+  PAYMENTS_SANDBOX: z.preprocess((v) => (v === '' ? undefined : v), z.enum(['true', 'false']).optional()),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -35,7 +48,16 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     const details = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(', ');
     throw new Error(`Configuration invalide : ${details}`);
   }
-  return parsed.data;
+  const env = parsed.data;
+  if (env.NODE_ENV === 'production' && env.PAYMENTS_SANDBOX === 'true') {
+    throw new Error('Configuration invalide : PAYMENTS_SANDBOX interdit en production');
+  }
+  return env;
+}
+
+/** Le prestataire simulé est actif hors production, sauf désactivation explicite. */
+export function sandboxPaymentsEnabled(env: Env): boolean {
+  return env.NODE_ENV !== 'production' && env.PAYMENTS_SANDBOX !== 'false';
 }
 
 export const ENV = Symbol('ENV');

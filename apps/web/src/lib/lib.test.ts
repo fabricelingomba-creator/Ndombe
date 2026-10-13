@@ -51,6 +51,14 @@ describe('navFor', () => {
     expect(items).not.toContain('finance');
   });
 
+  it('montre les paiements à l’étudiant et les finances au SG administratif', () => {
+    const student = navFor(['self:payments:write']).flatMap((s) => s.items);
+    expect(student).toEqual([expect.objectContaining({ key: 'payments', href: '/espace/paiements' })]);
+    expect(student[0].upcoming).toBeUndefined();
+    const sga = navFor(['finance:read', 'fees:structures:write']).flatMap((s) => s.items.map((i) => i.key));
+    expect(sga).toContain('finance');
+  });
+
   it('ne montre rien sans permission', () => {
     expect(navFor([])).toEqual([]);
   });

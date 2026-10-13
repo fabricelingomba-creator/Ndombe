@@ -138,3 +138,64 @@ export interface TranscriptVerification {
   average: number | null;
   contentHash: string;
 }
+
+export type InvoiceStatus = 'open' | 'paid' | 'cancelled';
+export type PaymentStatus = 'pending' | 'succeeded' | 'failed';
+export type PaymentProviderKey = 'sandbox' | 'stripe';
+
+export interface Payment {
+  id: string;
+  invoiceId: string;
+  provider: PaymentProviderKey;
+  amountMinor: number;
+  currency: string;
+  status: PaymentStatus;
+  redirectUrl: string | null;
+  failureReason: string | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export interface Invoice {
+  id: string;
+  feeCode: string;
+  feeName: string;
+  amountMinor: number;
+  paidMinor: number;
+  currency: string;
+  status: InvoiceStatus;
+  dueOn: string;
+  paidAt: string | null;
+}
+
+export interface MyInvoice extends Invoice {
+  payments: Payment[];
+}
+
+export interface StudentInvoice extends Invoice {
+  studentName: string;
+  studentEmail: string;
+}
+
+export interface PaymentOption {
+  provider: PaymentProviderKey;
+  label: string;
+  requiresPhone: boolean;
+}
+
+export interface FeeStructure {
+  id: string;
+  code: string;
+  name: string;
+  amountMinor: number;
+  currency: string;
+  termId: string | null;
+  dueOn: string;
+}
+
+export interface PaymentProviderConfig {
+  provider: PaymentProviderKey;
+  enabled: boolean;
+  updatedAt: string;
+  webhookUrl: string;
+}
