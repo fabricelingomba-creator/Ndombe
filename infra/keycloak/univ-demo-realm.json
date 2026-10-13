@@ -1,0 +1,27 @@
+{
+  "realm": "univ-demo",
+  "enabled": true,
+  "displayName": "Université de démonstration",
+  "sslRequired": "external",
+  "clients": [
+    {
+      "clientId": "elongo-portal",
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": true,
+      "redirectUris": ["http://demo.elongo.localhost:*", "http://localhost:*"],
+      "webOrigins": ["+"]
+    }
+  ],
+  "users": [
+    {
+      "username": "recteur",
+      "email": "recteur@demo.elongo.localhost",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Recteur",
+      "lastName": "Démo",
+      "credentials": [{ "type": "password", "value": "recteur", "temporary": false }]
+    }
+  ]
+}
