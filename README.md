@@ -1,2 +1,79 @@
-# Ndombe
-pour moi
+# Elongo
+
+Plateforme SaaS multi-tenant en marque blanche pour la gestion des universités :
+portail public à la marque de chaque établissement, portails étudiants,
+enseignants et administration, application mobile unique, portail Super Admin.
+
+Le document d'architecture (stack, isolation des données, RBAC, paiements,
+notifications, mobile, feuille de route) est tenu dans le projet Claude ;
+ce dépôt en reprend les décisions dans [docs/architecture.md](docs/architecture.md).
+
+## État : phase 0, fondations
+
+| Brique | Où |
+| --- | --- |
+| Monorepo pnpm, API NestJS (TypeScript) | `apps/api` |
+| Schéma multi-tenant, Row-Level Security PostgreSQL | `apps/api/migrations` |
+| Résolution de l'université par domaine ou sous-domaine | `apps/api/src/tenancy` |
+| Authentification Keycloak (un realm par université) | `apps/api/src/auth` |
+| RBAC par permissions et portées (université, faculté, département, cours) | `apps/api/src/rbac` |
+| Journal d'audit en ajout seul, chaîné par hash | `apps/api/src/audit` |
+| Onboarding d'une université (Super Admin) | `apps/api/src/platform` |
+| Tests d'isolation entre universités | `apps/api/test` |
+
+## Démarrer en local
+
+Prérequis : Node 22, pnpm 10, Docker.
+
+```bash
+pnpm install
+docker compose up -d                  # PostgreSQL 16 + Keycloak
+cp apps/api/.env.example apps/api/.env
+pnpm db:migrate                       # rôles de connexion + migrations
+pnpm db:seed                          # université « demo »
+pnpm dev                              # API sur http://localhost:3000
+```
+
+Vérifier :
+
+```bash
+curl http://demo.elongo.localhost:3000/v1/tenant/manifest
+```
+
+Comptes Keycloak de développement (http://localhost:8080) :
+
+| Realm | Utilisateur | Mot de passe | Rôle |
+| --- | --- | --- | --- |
+| `elongo-platform` | `ops` | `ops` | Super Admin |
+| `univ-demo` | `recteur` | `recteur` | Recteur de l'université demo |
+
+Obtenir un jeton et appeler l'API :
+
+```bash
+TOKEN=$(curl -s -d client_id=elongo-portal -d grant_type=password \
+  -d username=recteur -d password=recteur \
+  http://localhost:8080/realms/univ-demo/protocol/openid-connect/token | jq -r .access_token)
+curl -H "Authorization: Bearer $TOKEN" http://demo.elongo.localhost:3000/v1/me
+```
+
+## Tests
+
+```bash
+pnpm test
+```
+
+Les tests créent une base PostgreSQL neuve par suite (variable
+`TEST_DATABASE_SERVER_URL`, par défaut `postgres://postgres:postgres@localhost:5432`)
+et vérifient notamment qu'une université ne peut ni lire ni écrire les données
+d'une autre, par l'API comme directement en base.
+
+## Règles du projet
+
+- Toute table métier porte `tenant_id` et une politique RLS ; l'API se connecte
+  avec le rôle `elongo_app`, qui ne contourne jamais la RLS.
+- Toute requête de données passe par `DatabaseService.withTenant()`.
+- Le code vérifie des permissions (`@RequirePermission('grades:publish')`),
+  jamais des noms de rôles.
+- Toute modification sensible (notes, finances, rôles, configuration) écrit
+  dans le journal d'audit, dans la même transaction.
+- Aucun secret dans le dépôt : il est public.

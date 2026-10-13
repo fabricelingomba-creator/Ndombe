@@ -1,0 +1,31 @@
+{
+  "realm": "elongo-platform",
+  "enabled": true,
+  "displayName": "Elongo · Administration de la plateforme",
+  "sslRequired": "external",
+  "roles": {
+    "realm": [{ "name": "platform-admin", "description": "Gestion des universités" }]
+  },
+  "clients": [
+    {
+      "clientId": "elongo-admin",
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": true,
+      "redirectUris": ["http://localhost:*"],
+      "webOrigins": ["+"]
+    }
+  ],
+  "users": [
+    {
+      "username": "ops",
+      "email": "ops@elongo.localhost",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Ops",
+      "lastName": "Elongo",
+      "credentials": [{ "type": "password", "value": "ops", "temporary": false }],
+      "realmRoles": ["platform-admin"]
+    }
+  ]
+}
