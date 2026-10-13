@@ -22,6 +22,42 @@
       "firstName": "Recteur",
       "lastName": "Démo",
       "credentials": [{ "type": "password", "value": "recteur", "temporary": false }]
+    },
+    {
+      "username": "sgacad",
+      "email": "sg.academique@demo.elongo.localhost",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "SG",
+      "lastName": "Académique",
+      "credentials": [{ "type": "password", "value": "sgacad", "temporary": false }]
+    },
+    {
+      "username": "professeur",
+      "email": "professeur@demo.elongo.localhost",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Professeure",
+      "lastName": "Démo",
+      "credentials": [{ "type": "password", "value": "professeur", "temporary": false }]
+    },
+    {
+      "username": "etudiant",
+      "email": "etudiant@demo.elongo.localhost",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Étudiant",
+      "lastName": "Démo",
+      "credentials": [{ "type": "password", "value": "etudiant", "temporary": false }]
+    },
+    {
+      "username": "etudiante",
+      "email": "etudiante@demo.elongo.localhost",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Étudiante",
+      "lastName": "Démo",
+      "credentials": [{ "type": "password", "value": "etudiante", "temporary": false }]
     }
   ]
 }

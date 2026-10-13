@@ -28,6 +28,11 @@ export class PermissionsGuard implements CanActivate {
     const user = req.user;
     if (!user || !req.tenant) throw new ForbiddenException();
 
+    if (requirement.scope === 'any') {
+      if (user.grants.some((g) => g.permission === requirement.permission)) return true;
+      throw new ForbiddenException(`Permission requise : ${requirement.permission}`);
+    }
+
     let chain: Scope[] = [UNIVERSITY_SCOPE];
     if (requirement.scope) {
       const id = req.params[requirement.scope.param];

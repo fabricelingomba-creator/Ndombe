@@ -24,9 +24,9 @@ export const NAV_SECTIONS: NavSection[] = [
     key: 'student',
     label: 'Mes études',
     items: [
-      { key: 'courses', label: 'Mes cours', href: '/espace/cours', anyOf: ['self:courses:read'], upcoming: true },
+      { key: 'courses', label: 'Mes cours', href: '/espace/cours', anyOf: ['self:courses:read'] },
       { key: 'assignments', label: 'Devoirs', href: '/espace/devoirs', anyOf: ['self:assignments:submit'], upcoming: true },
-      { key: 'grades', label: 'Notes et relevés', href: '/espace/notes', anyOf: ['self:grades:read'], upcoming: true },
+      { key: 'grades', label: 'Notes et relevés', href: '/espace/notes', anyOf: ['self:grades:read'] },
       { key: 'payments', label: 'Paiements', href: '/espace/paiements', anyOf: ['self:payments:write'], upcoming: true },
     ],
   },
@@ -35,7 +35,7 @@ export const NAV_SECTIONS: NavSection[] = [
     label: 'Enseignement',
     items: [
       { key: 'my-courses', label: 'Mes enseignements', href: '/espace/enseignements', anyOf: ['courses:materials:write'], upcoming: true },
-      { key: 'grading', label: 'Notation', href: '/espace/notation', anyOf: ['grades:enter'], upcoming: true },
+      { key: 'grading', label: 'Notation', href: '/espace/notation', anyOf: ['grades:enter'] },
       { key: 'attendance', label: 'Présences', href: '/espace/presences', anyOf: ['attendance:write'], upcoming: true },
     ],
   },
@@ -44,7 +44,7 @@ export const NAV_SECTIONS: NavSection[] = [
     label: 'Administration',
     items: [
       { key: 'structure', label: 'Facultés et départements', href: '/espace/structure', anyOf: ['academic:structure:write'], upcoming: true },
-      { key: 'grade-approval', label: 'Validation des notes', href: '/espace/validation-notes', anyOf: ['grades:approve', 'grades:publish'], upcoming: true },
+      { key: 'grade-approval', label: 'Validation des notes', href: '/espace/validation-notes', anyOf: ['grades:approve', 'grades:publish'] },
       { key: 'finance', label: 'Finances', href: '/espace/finances', anyOf: ['finance:read'], upcoming: true },
       { key: 'research', label: 'Recherche', href: '/espace/recherche', anyOf: ['research:labs:manage'], upcoming: true },
       { key: 'audit', label: "Journal d'audit", href: '/espace/audit', anyOf: ['audit:read'], upcoming: true },

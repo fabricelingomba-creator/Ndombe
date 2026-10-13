@@ -22,6 +22,7 @@ ce dépôt en reprend les décisions dans [docs/architecture.md](docs/architectu
 | Onboarding d'une université (Super Admin) | `apps/api/src/platform` |
 | Tests d'isolation entre universités | `apps/api/test` |
 | Portail web à la marque (Next.js) : accueil, connexion, espace | `apps/web` |
+| Cours, inscriptions, notes et circuit de validation | `apps/api/src/academic`, `apps/web/src/app/espace` |
 
 ## Démarrer en local
 
@@ -58,6 +59,13 @@ Comptes Keycloak de développement (http://localhost:8080) :
 | --- | --- | --- | --- |
 | `elongo-platform` | `ops` | `ops` | Super Admin |
 | `univ-demo` | `recteur` | `recteur` | Recteur de l'université demo |
+| `univ-demo` | `sgacad` | `sgacad` | SG académique de la Faculté des sciences |
+| `univ-demo` | `professeur` | `professeur` | Professeure de INF101 et INF102 |
+| `univ-demo` | `etudiant`, `etudiante` | idem | Étudiants inscrits aux deux cours |
+
+Le seed crée la Faculté des sciences, le département Informatique, la période
+2026-S1 et les cours INF101 et INF102 ; chaque compte se relie à son profil à
+la première connexion (e-mail vérifié).
 
 Obtenir un jeton et appeler l'API :
 

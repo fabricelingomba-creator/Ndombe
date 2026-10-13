@@ -42,3 +42,70 @@ export interface Me {
   roles: string[];
   permissions: string[];
 }
+
+export type GradesStatus = 'draft' | 'submitted' | 'returned' | 'approved' | 'published';
+
+export interface MyCourse {
+  enrollmentId: string;
+  offeringId: string;
+  courseCode: string;
+  courseTitle: string;
+  credits: number;
+  termCode: string;
+  termName: string;
+  section: string;
+  gradesPublished: boolean;
+}
+
+export interface TermGrades {
+  termCode: string;
+  termName: string;
+  average: number | null;
+  creditsAttempted: number;
+  creditsEarned: number;
+  grades: { courseCode: string; courseTitle: string; credits: number; score: number; publishedAt: string }[];
+}
+
+export interface TeachingOffering {
+  id: string;
+  courseCode: string;
+  courseTitle: string;
+  termCode: string;
+  section: string;
+  gradesStatus: GradesStatus;
+  returnReason: string | null;
+  enrolledCount: number;
+  gradedCount: number;
+}
+
+export interface GradeSheet {
+  id: string;
+  courseCode: string;
+  courseTitle: string;
+  credits: number;
+  termCode: string;
+  termName: string;
+  section: string;
+  capacity: number | null;
+  gradesStatus: GradesStatus;
+  returnReason: string | null;
+  submittedAt: string | null;
+  approvedAt: string | null;
+  publishedAt: string | null;
+  instructors: { id: string; fullName: string; email: string }[];
+  roster: { enrollmentId: string; studentId: string; fullName: string; email: string; score: number | null }[];
+}
+
+export interface ReviewItem {
+  id: string;
+  courseCode: string;
+  courseTitle: string;
+  termCode: string;
+  section: string;
+  gradesStatus: GradesStatus;
+  submittedAt: string | null;
+  approvedAt: string | null;
+  submittedBy: string | null;
+  departmentName: string;
+  enrolledCount: number;
+}

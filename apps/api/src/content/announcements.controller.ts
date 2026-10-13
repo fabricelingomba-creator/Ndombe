@@ -27,7 +27,7 @@ export class AnnouncementsController {
 
   /** Fil des annonces publiées (publiques et campus) pour un utilisateur connecté. */
   @Get()
-  @RequirePermission('announcements:read')
+  @RequirePermission('announcements:read', 'any')
   list(@CurrentTenant() tenant: Tenant, @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number) {
     return this.db.withTenant(tenant.id, async (tx) => {
       return (
