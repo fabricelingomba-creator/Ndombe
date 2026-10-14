@@ -76,6 +76,7 @@ describe('Isolation multi-tenant', () => {
         name: 'Université A',
         branding: { primaryColor: '#004080' },
         auth: { issuer: 'https://auth.elongo.test/realms/univ-unia' },
+        portalUrl: 'https://unia.elongo.test',
       });
     });
 
@@ -83,6 +84,8 @@ describe('Isolation multi-tenant', () => {
       const res = await api().get('/v1/tenant/manifest').set('Host', 'portail.unib.ac.cd').expect(200);
       expect(res.body.slug).toBe('unib');
       expect(res.body.branding.primaryColor).toBe('#800000');
+      // Le domaine personnalisé n'est pas encore vérifié : l'adresse publiée reste le sous-domaine.
+      expect(res.body.portalUrl).toBe('https://unib.elongo.test');
     });
 
     it("accepte l'en-tête de l'app mobile quand l'hôte n'est pas un portail", async () => {

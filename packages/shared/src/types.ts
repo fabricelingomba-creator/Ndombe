@@ -19,6 +19,8 @@ export interface Manifest {
   branding: Branding | null;
   features: string[];
   auth: { issuer: string };
+  /** Adresse du portail web de l'université. */
+  portalUrl: string;
 }
 
 export interface Announcement {

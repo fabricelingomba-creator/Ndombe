@@ -53,6 +53,17 @@ export class ApiClient {
     return this.request<T>('GET', path, undefined, {}, false);
   }
 
+  url(path: string): string {
+    return `${this.options.baseUrl.replace(/\/$/, '')}${path}`;
+  }
+
+  /** En-têtes d'une requête authentifiée faite hors de ce client (téléchargement de fichier). */
+  async authHeaders(fresh = false): Promise<Record<string, string>> {
+    const token = fresh ? await this.options.refresh() : this.options.accessToken();
+    if (!token) throw new ApiError(401, 'Session expirée : reconnectez-vous.');
+    return { ...this.tenantHeaders(), authorization: `Bearer ${token}` };
+  }
+
   private tenantHeaders(): Record<string, string> {
     const t = this.options.tenant;
     return 'slug' in t ? { 'x-elongo-tenant': t.slug } : { 'x-elongo-host': t.host };
@@ -69,7 +80,7 @@ export class ApiClient {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), this.options.timeoutMs ?? 20_000);
       try {
-        return await this.fetchFn(`${this.options.baseUrl.replace(/\/$/, '')}${path}`, {
+        return await this.fetchFn(this.url(path), {
           method,
           headers: {
             ...headers,

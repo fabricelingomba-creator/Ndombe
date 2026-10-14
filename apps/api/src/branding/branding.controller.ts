@@ -1,5 +1,6 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Inject } from '@nestjs/common';
 import { Public } from '../auth/decorators';
+import { ENV, Env } from '../config/env';
 import { JwtVerifierService } from '../auth/jwt-verifier.service';
 import { DatabaseService } from '../db/database.service';
 import { CurrentTenant } from '../tenancy/current-tenant.decorator';
@@ -14,6 +15,7 @@ export class BrandingController {
   constructor(
     private readonly db: DatabaseService,
     private readonly jwt: JwtVerifierService,
+    @Inject(ENV) private readonly env: Env,
   ) {}
 
   @Get('manifest')
@@ -27,6 +29,14 @@ export class BrandingController {
              FROM tenant_branding`,
         )
       ).rows[0];
+      const domain = (
+        await tx.query<{ domain: string }>(
+          `SELECT domain FROM tenant_domains
+            WHERE tenant_id = $1 AND verified_at IS NOT NULL
+            ORDER BY is_primary DESC, created_at LIMIT 1`,
+          [tenant.id],
+        )
+      ).rows[0]?.domain;
       const features = (await tx.query<{ key: string }>('SELECT key FROM feature_flags WHERE enabled ORDER BY key')).rows;
       return {
         slug: tenant.slug,
@@ -35,6 +45,8 @@ export class BrandingController {
         branding: branding ?? null,
         features: features.map((f) => f.key),
         auth: { issuer: this.jwt.issuerFor(tenant.keycloakRealm) },
+        // Adresse du portail web : l'app mobile y renvoie après un paiement et pour les tâches du personnel.
+        portalUrl: `https://${domain ?? `${tenant.slug}.${this.env.BASE_DOMAIN}`}`,
       };
     });
   }
