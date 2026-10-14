@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@elongo/shared": "workspace:*",
     "jose": "^5.10.0",
     "next": "^16.4.0",
     "react": "^19.3.0",

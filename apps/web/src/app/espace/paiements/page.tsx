@@ -5,15 +5,12 @@ import { FormattedDate } from '@/components/date';
 import { AccessDenied, SpaceShell } from '@/components/space-shell';
 import { getManifest, getMyBankAccounts, getMyInvoices, getPaymentOptions } from '@/lib/api';
 import { requireUser } from '@/lib/auth';
-import { formatMoney, INVOICE_LABELS, PAYMENT_LABELS, totalsByCurrency } from '@/lib/payments';
+import { blockingPayment, formatMoney, INVOICE_LABELS, PAYMENT_LABELS, totalsByCurrency } from '@/lib/payments';
 import { portalRequest } from '@/lib/request';
 import type { BankAccount, MyInvoice, Payment, PaymentOption } from '@/lib/types';
 import { confirmSandboxPayment, declareBankPayment, startPayment } from '../actions';
 
 export const metadata: Metadata = { title: 'Paiements' };
-
-/** Même délai que l'API : un paiement en attente plus récent bloque un nouvel essai. */
-const PENDING_LOCK_MS = 30 * 60 * 1000;
 
 /** Factures de l'étudiant, paiement Mobile Money ou par banque (bordereau), historique. */
 export default async function MyPaymentsPage({ searchParams }: { searchParams: Promise<{ paiement?: string }> }) {
@@ -161,11 +158,7 @@ function OpenInvoice({
   locale: string;
 }) {
   const balance = invoice.amountMinor - invoice.paidMinor;
-  // Un bordereau attend la décision du service financier, quel que soit son âge.
-  const pending = invoice.payments.find(
-    (p) =>
-      p.status === 'pending' && (p.provider === 'bank' || Date.now() - new Date(p.createdAt).getTime() < PENDING_LOCK_MS),
-  );
+  const pending = blockingPayment(invoice.payments);
   const rejected = invoice.payments.find((p) => p.provider === 'bank' && p.status === 'failed');
   const bankAccounts = accounts.filter((a) => a.currency === invoice.currency);
   const overdue = new Date(`${invoice.dueOn}T23:59:59Z`).getTime() < Date.now();

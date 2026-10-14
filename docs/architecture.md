@@ -192,3 +192,35 @@ enregistrée. Les textes sont construits dans `notifications/catalog.ts`.
 SMS et notifications push (app mobile) se brancheront comme d'autres canaux de
 `notification_deliveries`. Les SMS demandent un agrégateur, comme le Mobile Money.
 
+
+## Application mobile
+
+Expo (React Native) et Expo Router, dans `apps/mobile`. Les types, libellés et
+règles de calcul (montants, téléphones, notes) viennent de `packages/shared`,
+le même code que le portail web.
+
+- **Université** : l'app envoie l'en-tête `x-elongo-tenant` (code) à l'API ;
+  le manifeste public donne la marque, l'émetteur Keycloak et `portalUrl`
+  (premier domaine vérifié, sinon le sous-domaine), adresse de retour après un
+  paiement et des écrans réservés au portail.
+- **Connexion** : code d'autorisation + PKCE dans le navigateur du système
+  (`expo-auth-session`), scope `offline_access`. Les jetons de renouvellement
+  tournent à chaque usage (`refreshTokenMaxReuse: 0`) : un seul renouvellement
+  à la fois (`singleFlight`), sinon deux requêtes simultanées se
+  déconnecteraient l'une l'autre.
+- **Stockage** : jeton de renouvellement dans `expo-secure-store`
+  (`WHEN_UNLOCKED_THIS_DEVICE_ONLY`, exclu des sauvegardes), copies hors ligne
+  dans SQLite, rangées par université et par compte, effacées à la déconnexion.
+- **Navigation** : chaque état de session (`no-tenant`, `signed-out`, `locked`,
+  `ready`) n'ouvre que ses écrans (`Stack.Protected`) ; les onglets suivent les
+  permissions, comme le menu du portail. L'API revérifie tout.
+- **Écritures hors ligne** : seule une liste fermée d'actions idempotentes
+  (marquer une notification lue) peut attendre le réseau ; elle est rejouée
+  dans l'ordre et une action refusée (4xx) est abandonnée.
+- **Paiements** : clé d'idempotence tirée une fois par formulaire ; le
+  bordereau part en multipart vers le même point d'entrée que le portail, qui
+  vérifie le contenu réel du fichier, sa taille et les doublons.
+
+Prochaine étape : notifications push, comme nouveau canal de
+`notification_deliveries` (enregistrement de l'appareil, puis envoi par
+Expo Push / FCM / APNs).

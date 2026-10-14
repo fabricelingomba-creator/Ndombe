@@ -4,6 +4,8 @@ const config: NextConfig = {
   output: 'standalone',
   poweredByHeader: false,
   reactStrictMode: true,
+  // Types et règles métier partagés avec l'app mobile, publiés en TypeScript source.
+  transpilePackages: ['@elongo/shared'],
   experimental: {
     // Bordereaux de paiement téléversés (5 Mo au plus côté API).
     serverActions: { bodySizeLimit: '6mb' },
