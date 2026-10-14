@@ -62,7 +62,13 @@
           "imageWidth": 160
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-notifications",
+        {
+          "color": "#1D4ED8"
+        }
+      ]
     ],
     "scheme": "elongo",
     "experiments": {

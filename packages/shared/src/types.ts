@@ -257,4 +257,6 @@ export interface NotificationPreference {
   category: NotificationCategory;
   label: string;
   email: boolean;
+  /** Notification sur les téléphones où l'app est connectée. */
+  push: boolean;
 }

@@ -126,9 +126,31 @@ pas Expo Go. Pour publier : `eas build` puis `eas submit`, avec
   (Keychain, Keystore), jeton d'accès en mémoire seulement, verrou par
   empreinte ou visage après 5 minutes en arrière-plan, données locales effacées
   à la déconnexion.
+- **Notifications push** : chaque notification arrive aussi sur les téléphones
+  connectés (réglable par catégorie dans le profil) ; l'appui ouvre l'écran lié.
 - **Hors ligne** : chaque écran garde sa dernière copie et affiche sa date ;
   marquer une notification lue attend le retour du réseau. Un paiement exige
   toujours le réseau.
+
+### Activer les notifications push
+
+L'API envoie par le service Expo Push, qui relaie vers Apple (APNs) et Google
+(FCM) ; aucune clé n'est stockée par l'API ni dans ce dépôt.
+
+1. Compte Expo (gratuit), puis dans `apps/mobile` : `npx eas init` ; noter
+   l'identifiant du projet et le donner à la build : variable EAS
+   `EAS_PROJECT_ID`.
+2. Firebase : projet, app Android `app.elongo.mobile`, télécharger
+   `google-services.json` et le déposer sur EAS comme variable de type fichier
+   `GOOGLE_SERVICES_JSON` ; générer une clé de compte de service et la déposer
+   dans expo.dev, Credentials, Android, « FCM V1 service account key ».
+3. Apple Developer : identifiant `app.elongo.mobile` avec Push Notifications,
+   puis `eas credentials` (iOS) crée ou importe la clé APNs.
+4. API en production : `PUSH_TRANSPORT=expo` (valeur par défaut), et
+   `EXPO_ACCESS_TOKEN` si la sécurité renforcée des push est activée sur expo.dev.
+
+Les push n'arrivent que sur une build installée (pas Expo Go, pas le
+simulateur iOS, pas le navigateur).
 
 ## Création automatique des realms
 

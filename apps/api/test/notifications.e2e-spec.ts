@@ -249,12 +249,13 @@ describe('Notifications', () => {
     it('chacun coupe les e-mails d’une catégorie ; la notification reste dans l’application', async () => {
       const defaults = await api().get('/v1/me/notification-preferences').set(as('etu')).expect(200);
       expect(defaults.body).toEqual([
-        { category: 'finance', label: 'Factures et paiements', email: true },
-        { category: 'academic', label: 'Notes et relevés', email: true },
-        { category: 'tasks', label: 'Tâches à traiter', email: true },
-        { category: 'announcements', label: 'Annonces de l’université', email: true },
+        { category: 'finance', label: 'Factures et paiements', email: true, push: true },
+        { category: 'academic', label: 'Notes et relevés', email: true, push: true },
+        { category: 'tasks', label: 'Tâches à traiter', email: true, push: true },
+        { category: 'announcements', label: 'Annonces de l’université', email: true, push: true },
       ]);
       await api().put('/v1/me/notification-preferences').set(as('etu')).send({ email: { sport: false } }).expect(400);
+      await api().put('/v1/me/notification-preferences').set(as('etu')).send({}).expect(400);
 
       // Un e-mail déjà en file pour cette catégorie ne part plus.
       await issue('LAB', 15, '2027-01-20');

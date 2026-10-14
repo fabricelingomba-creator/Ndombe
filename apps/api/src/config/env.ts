@@ -47,6 +47,10 @@ const envSchema = z.object({
   SMTP_URL: z.preprocess((v) => (v === '' ? undefined : v), z.string().url().optional()),
   /** Adresse d'expédition ; le nom affiché est celui de l'université. */
   EMAIL_FROM: z.preprocess((v) => (v === '' ? undefined : v), z.email().optional()),
+  /** Notifications push : expo (production), log (journal, défaut hors production) ou none. */
+  PUSH_TRANSPORT: z.preprocess((v) => (v === '' ? undefined : v), z.enum(['none', 'log', 'expo']).optional()),
+  /** Jeton d'accès Expo, requis seulement si « Enhanced Security for Push Notifications » est activé sur expo.dev. */
+  EXPO_ACCESS_TOKEN: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(10).optional()),
   /** Fréquence d'envoi des notifications en attente ; 0 désactive la boucle (tests). */
   NOTIFICATIONS_INTERVAL_MS: z.coerce.number().int().min(0).default(15_000),
 });
@@ -67,6 +71,9 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   if (env.NODE_ENV === 'production' && transport === 'log') {
     throw new Error('Configuration invalide : EMAIL_TRANSPORT=log interdit en production (données personnelles dans les journaux)');
   }
+  if (env.NODE_ENV === 'production' && pushTransport(env) === 'log') {
+    throw new Error('Configuration invalide : PUSH_TRANSPORT=log interdit en production (données personnelles dans les journaux)');
+  }
   if (transport === 'smtp' && !env.SMTP_URL) {
     throw new Error('Configuration invalide : SMTP_URL requis quand EMAIL_TRANSPORT=smtp');
   }
@@ -75,6 +82,10 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
 
 export function emailTransport(env: Env): 'none' | 'log' | 'smtp' {
   return env.EMAIL_TRANSPORT ?? (env.NODE_ENV === 'production' ? 'none' : 'log');
+}
+
+export function pushTransport(env: Env): 'none' | 'log' | 'expo' {
+  return env.PUSH_TRANSPORT ?? (env.NODE_ENV === 'production' ? 'expo' : 'log');
 }
 
 export function emailFrom(env: Env): string {

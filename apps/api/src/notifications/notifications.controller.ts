@@ -15,9 +15,19 @@ const listQuerySchema = z.object({
   before: z.iso.datetime({ offset: true }).optional(),
 });
 
-const preferencesSchema = z.object({
-  email: z.partialRecord(z.enum(NOTIFICATION_CATEGORIES), z.boolean()),
+const channelPreferences = z.partialRecord(z.enum(NOTIFICATION_CATEGORIES), z.boolean());
+const preferencesSchema = z
+  .object({ email: channelPreferences.optional(), push: channelPreferences.optional() })
+  .refine((b) => b.email || b.push, 'Rien à enregistrer');
+
+const PUSH_TOKEN = /^Expo(nent)?PushToken\[[A-Za-z0-9_-]{8,200}\]$/;
+const deviceSchema = z.object({
+  token: z.string().regex(PUSH_TOKEN, 'Jeton de notification invalide'),
+  platform: z.enum(['ios', 'android']),
 });
+const unregisterSchema = z.object({ token: z.string().regex(PUSH_TOKEN, 'Jeton de notification invalide') });
+/** Un compte garde au plus ce nombre de téléphones ; les plus anciens sont oubliés. */
+const MAX_DEVICES = 10;
 
 const COLUMNS = `id, kind, category, title, body, link, created_at AS "createdAt", read_at AS "readAt"`;
 
@@ -100,14 +110,16 @@ export class MyNotificationsController {
     @Body(new ZodPipe(preferencesSchema)) body: z.infer<typeof preferencesSchema>,
   ) {
     return this.db.withTenant(tenant.id, async (tx) => {
-      for (const [category, enabled] of Object.entries(body.email)) {
-        await tx.query(
-          `INSERT INTO notification_preferences (tenant_id, user_id, category, channel, enabled) VALUES ($1, $2, $3, 'email', $4)
-           ON CONFLICT (tenant_id, user_id, category, channel) DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = now()`,
-          [tenant.id, user.id, category, enabled],
-        );
+      for (const channel of ['email', 'push'] as const) {
+        for (const [category, enabled] of Object.entries(body[channel] ?? {})) {
+          await tx.query(
+            `INSERT INTO notification_preferences (tenant_id, user_id, category, channel, enabled) VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT (tenant_id, user_id, category, channel) DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = now()`,
+            [tenant.id, user.id, category, channel, enabled],
+          );
+        }
       }
-      // Les e-mails déjà en file pour une catégorie désactivée ne partent plus.
+      // Les e-mails et push déjà en file pour une catégorie désactivée ne partent plus.
       await tx.query(
         `UPDATE notification_deliveries d SET status = 'failed', last_error = 'Désactivé par l''utilisateur'
            FROM notifications n, notification_preferences p
@@ -119,16 +131,54 @@ export class MyNotificationsController {
     });
   }
 
+  /** Enregistre le téléphone qui vient de se connecter (jeton Expo Push). */
+  @Post('push-devices')
+  @HttpCode(204)
+  registerDevice(
+    @CurrentTenant() tenant: Tenant,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body(new ZodPipe(deviceSchema)) body: z.infer<typeof deviceSchema>,
+  ) {
+    return this.db.withTenant(tenant.id, async (tx) => {
+      // Même téléphone, autre compte de la même université : il passe au compte connecté.
+      await tx.query(
+        `INSERT INTO push_devices (tenant_id, user_id, token, platform) VALUES ($1, $2, $3, $4)
+         ON CONFLICT (tenant_id, token) DO UPDATE
+           SET user_id = EXCLUDED.user_id, platform = EXCLUDED.platform, last_seen_at = now()`,
+        [tenant.id, user.id, body.token, body.platform],
+      );
+      await tx.query(
+        `DELETE FROM push_devices WHERE user_id = $1 AND id NOT IN (
+           SELECT id FROM push_devices WHERE user_id = $1 ORDER BY last_seen_at DESC LIMIT $2)`,
+        [user.id, MAX_DEVICES],
+      );
+    });
+  }
+
+  /** Déconnexion : ce téléphone ne reçoit plus les notifications du compte. */
+  @Post('push-devices/unregister')
+  @HttpCode(204)
+  unregisterDevice(
+    @CurrentTenant() tenant: Tenant,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body(new ZodPipe(unregisterSchema)) body: z.infer<typeof unregisterSchema>,
+  ) {
+    return this.db.withTenant(tenant.id, async (tx) => {
+      await tx.query('DELETE FROM push_devices WHERE user_id = $1 AND token = $2', [user.id, body.token]);
+    });
+  }
+
   private async loadPreferences(tx: Tx, userId: string) {
-    const rows = await tx.query<{ category: NotificationCategory; enabled: boolean }>(
-      `SELECT category, enabled FROM notification_preferences WHERE user_id = $1 AND channel = 'email'`,
+    const rows = await tx.query<{ category: NotificationCategory; channel: 'email' | 'push'; enabled: boolean }>(
+      `SELECT category, channel, enabled FROM notification_preferences WHERE user_id = $1`,
       [userId],
     );
-    const disabled = new Set(rows.rows.filter((r) => !r.enabled).map((r) => r.category));
+    const off = new Set(rows.rows.filter((r) => !r.enabled).map((r) => `${r.channel}:${r.category}`));
     return NOTIFICATION_CATEGORIES.map((category) => ({
       category,
       label: CATEGORY_LABELS[category],
-      email: !disabled.has(category),
+      email: !off.has(`email:${category}`),
+      push: !off.has(`push:${category}`),
     }));
   }
 }
