@@ -1,5 +1,5 @@
 import type { BankAccount, MyInvoice, Payment, PaymentOption } from '@elongo/shared/types';
-import { formatMoney, INVOICE_LABELS, normalizePhone, PAYMENT_LABELS, parseAmount } from '@elongo/shared/payments';
+import { blockingPayment, formatMoney, INVOICE_LABELS, normalizePhone, PAYMENT_LABELS, parseAmount } from '@elongo/shared/payments';
 import * as Crypto from 'expo-crypto';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
@@ -24,8 +24,10 @@ export default function InvoiceScreen() {
   const { invoiceId } = useLocalSearchParams<{ invoiceId: string }>();
   const invoices = useResource<MyInvoice[]>('invoices', '/v1/me/invoices');
   const options = useResource<PaymentOption[]>('payment-options', '/v1/me/payment-options');
+  const accounts = useResource<BankAccount[]>('bank-accounts', '/v1/me/bank-accounts');
   const invoice = invoices.data?.find((i) => i.id === invoiceId);
   const [method, setMethod] = useState<'mobile' | 'bank' | null>(null);
+  const { online } = useSession();
 
   if (!invoices.data) {
     return <Screen>{invoices.error ? <Notice kind="error">{invoices.error}</Notice> : <Loading />}</Screen>;
@@ -39,10 +41,15 @@ export default function InvoiceScreen() {
   }
 
   const balance = invoice.amountMinor - invoice.paidMinor;
-  const pending = invoice.payments.find((p) => p.status === 'pending');
+  const pending = blockingPayment(invoice.payments);
+  const lastSlip = invoice.payments.find((p) => p.provider === 'bank');
+  const rejected = lastSlip?.status === 'failed' ? lastSlip : null;
   const mobile = options.data?.find((o) => o.provider !== 'bank');
-  const bank = options.data?.find((o) => o.provider === 'bank');
+  const bankAccounts = (accounts.data ?? []).filter((a) => a.currency === invoice.currency);
+  const bank = bankAccounts.length > 0;
   const reload = () => void invoices.reload();
+  // Un paiement exige le réseau : jamais de formulaire sur une copie hors ligne.
+  const connected = online && invoices.offlineSince === null;
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
@@ -67,19 +74,25 @@ export default function InvoiceScreen() {
           </Notice>
         )}
 
-        {invoice.status === 'open' && !pending && invoices.offlineSince === null && (
+        {invoice.status === 'open' && !pending && rejected && (
+          <Notice kind="error">
+            Votre bordereau {rejected.slipReference} a été refusé : {rejected.failureReason}. Vous pouvez en envoyer un nouveau.
+          </Notice>
+        )}
+
+        {invoice.status === 'open' && !pending && connected && (
           <>
             <Heading>Payer</Heading>
-            {options.data && !mobile && !bank && <Body muted>Aucun moyen de paiement n’est encore ouvert par l’université.</Body>}
+            {options.data && accounts.data && !mobile && !bank && <Body muted>Aucun moyen de paiement n’est encore ouvert par l’université.</Body>}
             <View style={{ gap: 8 }}>
               {mobile && <Choice label={mobile.label} selected={method === 'mobile'} onPress={() => setMethod('mobile')} />}
               {bank && <Choice label="Dépôt bancaire (bordereau)" selected={method === 'bank'} onPress={() => setMethod('bank')} />}
             </View>
             {method === 'mobile' && mobile && <MobileMoneyForm invoice={invoice} option={mobile} onDone={reload} />}
-            {method === 'bank' && <BankSlipForm invoice={invoice} onDone={reload} />}
+            {method === 'bank' && <BankSlipForm invoice={invoice} accounts={bankAccounts} onDone={reload} />}
           </>
         )}
-        {invoice.status === 'open' && invoices.offlineSince !== null && <Notice kind="warning">Le paiement demande une connexion internet.</Notice>}
+        {invoice.status === 'open' && !connected && <Notice kind="warning">Le paiement demande une connexion internet.</Notice>}
 
         {invoice.payments.length > 0 && <Heading>Paiements</Heading>}
         {invoice.payments.map((p) => (
@@ -183,10 +196,8 @@ function MobileMoneyForm({ invoice, option, onDone }: { invoice: MyInvoice; opti
 }
 
 /** Dépôt à la banque : l'étudiant photographie ou joint son bordereau ; le service financier le valide. */
-function BankSlipForm({ invoice, onDone }: { invoice: MyInvoice; onDone: () => void }) {
+function BankSlipForm({ invoice, accounts: usable, onDone }: { invoice: MyInvoice; accounts: BankAccount[]; onDone: () => void }) {
   const { api } = useSession();
-  const accounts = useResource<BankAccount[]>('bank-accounts', '/v1/me/bank-accounts');
-  const usable = (accounts.data ?? []).filter((a) => a.currency === invoice.currency);
   const [accountId, setAccountId] = useState<string | null>(null);
   const [reference, setReference] = useState('');
   const [paidOn, setPaidOn] = useState(today());
@@ -268,9 +279,6 @@ function BankSlipForm({ invoice, onDone }: { invoice: MyInvoice; onDone: () => v
     }
   };
 
-  if (!accounts.data) return accounts.error ? <Notice kind="error">{accounts.error}</Notice> : <Loading />;
-  if (usable.length === 0) return <Notice kind="warning">Aucun compte bancaire n’est ouvert pour les paiements en {invoice.currency}.</Notice>;
-
   return (
     <Card>
       <Body bold>1. Déposez le montant sur l’un de ces comptes</Body>
@@ -332,7 +340,7 @@ function PaymentCard({ payment: p, onChange }: { payment: Payment; onChange: () 
     <Card>
       <Row>
         <Body bold>{formatMoney(p.amountMinor, p.currency)}</Body>
-        <Badge label={PAYMENT_LABELS[p.status]} tone={p.status === 'succeeded' ? 'success' : p.status === 'failed' ? 'danger' : 'warning'} />
+        <Badge label={p.provider === 'bank' && p.status === 'failed' ? 'Refusé' : PAYMENT_LABELS[p.status]} tone={p.status === 'succeeded' ? 'success' : p.status === 'failed' ? 'danger' : 'warning'} />
       </Row>
       <Body muted>
         {p.provider === 'bank' ? `Bordereau ${p.slipReference ?? ''}${p.bankName ? ` · ${p.bankName}` : ''}` : 'Mobile Money'} ·{' '}

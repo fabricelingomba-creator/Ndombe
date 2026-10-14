@@ -7,6 +7,10 @@ import { useResource } from '@/session/use-resource';
 import { Body, Button, Card, Heading, Notice, Row, Screen, Title } from '@/ui/components';
 import { useTheme } from '@/ui/theme';
 
+/** Pastille blanche sur la couleur de l'université (activeThumbColor : version web). */
+const switchColors = (on: string, off: string) =>
+  ({ trackColor: { true: on, false: off }, thumbColor: '#FFFFFF', activeThumbColor: '#FFFFFF' }) as object;
+
 /** Compte, sécurité de l'app et choix des e-mails. */
 export default function Profile() {
   const { me, tenant, biometrics, setBiometricsEnabled, signOut, forgetTenant, api } = useSession();
@@ -63,7 +67,7 @@ export default function Profile() {
               accessibilityLabel="Déverrouillage biométrique"
               value={biometrics.enabled}
               onValueChange={(v) => void setBiometricsEnabled(v)}
-              trackColor={{ true: t.primary }}
+              {...switchColors(t.primary, t.line)}
             />
           </Row>
         </Card>
@@ -80,7 +84,7 @@ export default function Profile() {
               value={email[p.category] ?? p.email}
               disabled={saving || prefs.offlineSince !== null}
               onValueChange={(v) => void toggle(p.category, v)}
-              trackColor={{ true: t.primary }}
+              {...switchColors(t.primary, t.line)}
             />
           </Row>
         ))}

@@ -65,7 +65,7 @@ function InvoiceRow({ invoice: i }: { invoice: MyInvoice }) {
           />
         </Row>
         <Body>
-          {formatMoney(i.amountMinor - i.paidMinor, i.currency)}
+          {formatMoney(i.status === 'open' ? i.amountMinor - i.paidMinor : i.amountMinor, i.currency)}
           {i.paidMinor > 0 && i.status === 'open' ? ` restant sur ${formatMoney(i.amountMinor, i.currency)}` : ''}
         </Body>
         <Body muted>{i.status === 'paid' && i.paidAt ? `Payée le ${formatDay(i.paidAt)}` : `Échéance : ${formatDay(i.dueOn)}`}</Body>

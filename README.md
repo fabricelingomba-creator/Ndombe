@@ -25,6 +25,9 @@ ce dépôt en reprend les décisions dans [docs/architecture.md](docs/architectu
 | Cours, inscriptions, notes et circuit de validation | `apps/api/src/academic`, `apps/web/src/app/espace` |
 | Relevés officiels en PDF, vérifiables par code | `apps/api/src/transcripts`, `apps/web/src/app/verifier` |
 | Frais, factures, paiements Mobile Money et par banque (bordereau validé par la finance) | `apps/api/src/payments`, `apps/web/src/app/espace/paiements` |
+| Notifications dans l'espace et par e-mail | `apps/api/src/notifications` |
+| Application mobile (Expo) : SSO, biométrie, hors ligne, paiement et bordereau | `apps/mobile` |
+| Types et règles partagés entre le web et le mobile | `packages/shared` |
 
 ## Démarrer en local
 
@@ -93,6 +96,39 @@ TOKEN=$(curl -s -d client_id=elongo-portal -d grant_type=password \
   http://localhost:8080/realms/univ-demo/protocol/openid-connect/token | jq -r .access_token)
 curl -H "Authorization: Bearer $TOKEN" http://demo.elongo.localhost:3000/v1/me
 ```
+
+## Application mobile
+
+Une seule app (iOS et Android) pour toutes les universités : au premier
+lancement, l'utilisateur saisit le code de son université (`unikin`) ou
+l'adresse de son portail ; l'app se met à ses couleurs puis ouvre la page de
+connexion de son realm Keycloak (client `elongo-mobile`, PKCE, retour sur
+`elongo://auth/callback`). Le mot de passe n'est jamais saisi dans l'app.
+
+```bash
+cd apps/mobile
+EXPO_PUBLIC_API_URL=http://<ip-du-poste>:3000 pnpm start   # puis a (Android) ou i (iOS)
+pnpm web                                                  # aperçu dans le navigateur
+pnpm test && pnpm typecheck
+```
+
+La connexion SSO (schéma `elongo://`) et la biométrie demandent un
+*development build* (`npx expo run:android`, `npx expo run:ios` ou EAS Build),
+pas Expo Go. Pour publier : `eas build` puis `eas submit`, avec
+`EXPO_PUBLIC_API_URL` fixé sur l'adresse de production de l'API.
+
+- **Étudiant** : accueil (reste à payer, résultats, annonces), notifications,
+  factures, paiement Mobile Money, dépôt bancaire avec photo du bordereau
+  (appareil photo, galerie ou PDF), notes, relevés officiels en PDF, profil.
+- **Personnel** : notifications et accès direct aux écrans du portail web
+  (validation des notes, relevés, finances).
+- **Sécurité** : jeton de renouvellement dans le trousseau du téléphone
+  (Keychain, Keystore), jeton d'accès en mémoire seulement, verrou par
+  empreinte ou visage après 5 minutes en arrière-plan, données locales effacées
+  à la déconnexion.
+- **Hors ligne** : chaque écran garde sa dernière copie et affiche sa date ;
+  marquer une notification lue attend le retour du réseau. Un paiement exige
+  toujours le réseau.
 
 ## Création automatique des realms
 

@@ -54,3 +54,20 @@ export function totalsByCurrency(items: { amountMinor: number; paidMinor: number
   }
   return [...totals.entries()].map(([currency, t]) => ({ currency, ...t, outstanding: t.billed - t.paid }));
 }
+
+/** Un paiement Mobile Money sans réponse bloque un nouvel essai pendant ce délai. */
+export const PENDING_LOCK_MS = 30 * 60 * 1000;
+
+/**
+ * Paiement en cours qui empêche d'en lancer un autre : un bordereau attend la
+ * décision du service financier quel que soit son âge ; un Mobile Money
+ * resté sans réponse n'est plus bloquant au bout de PENDING_LOCK_MS.
+ */
+export function blockingPayment<P extends { status: PaymentStatus; provider: string; createdAt: string }>(
+  payments: readonly P[],
+  now = Date.now(),
+): P | undefined {
+  return payments.find(
+    (p) => p.status === 'pending' && (p.provider === 'bank' || now - new Date(p.createdAt).getTime() < PENDING_LOCK_MS),
+  );
+}
