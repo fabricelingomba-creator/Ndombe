@@ -12,6 +12,8 @@ import type {
   Me,
   MyCourse,
   MyInvoice,
+  NotificationInbox,
+  NotificationPreference,
   PaymentOption,
   PaymentProviderConfig,
   ReviewItem,
@@ -61,6 +63,16 @@ export const getManifest = cache(async (host: string): Promise<Manifest | null> 
 
 export const getHomepage = (host: string) => apiFetch<Homepage>(host, '/v1/public/homepage');
 export const getMe = (host: string, token: string) => apiFetch<Me>(host, '/v1/me', token);
+export const getNotifications = (host: string, token: string, before?: string) =>
+  apiFetch<NotificationInbox>(
+    host,
+    `/v1/me/notifications?limit=30${before ? `&before=${encodeURIComponent(before)}` : ''}`,
+    token,
+  );
+export const getUnreadCount = (host: string, token: string) =>
+  apiFetch<{ count: number }>(host, '/v1/me/notifications/unread-count', token);
+export const getNotificationPreferences = (host: string, token: string) =>
+  apiFetch<NotificationPreference[]>(host, '/v1/me/notification-preferences', token);
 export const getAnnouncements = (host: string, token: string) =>
   apiFetch<Announcement[]>(host, '/v1/announcements?limit=10', token);
 export const getMyCourses = (host: string, token: string) => apiFetch<MyCourse[]>(host, '/v1/me/courses', token);

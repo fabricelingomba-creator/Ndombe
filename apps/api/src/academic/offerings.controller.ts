@@ -21,6 +21,8 @@ import { AuthenticatedUser } from '../auth/authenticated-user';
 import { CurrentUser, RequirePermission } from '../auth/decorators';
 import { ZodPipe } from '../common/zod.pipe';
 import { DatabaseService, Tx } from '../db/database.service';
+import { messages } from '../notifications/catalog';
+import { NotificationsService } from '../notifications/notifications.service';
 import { RbacService } from '../rbac/rbac.service';
 import { CurrentTenant } from '../tenancy/current-tenant.decorator';
 import { Tenant } from '../tenancy/tenant';
@@ -70,6 +72,7 @@ export class OfferingsController {
     private readonly db: DatabaseService,
     private readonly audit: AuditService,
     private readonly rbac: RbacService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   @Get()
@@ -359,6 +362,43 @@ export class OfferingsController {
     return res.rows[0];
   }
 
+  /** Prévient l'étape suivante du circuit : approbateur, publieur, professeur ou étudiants. */
+  private async notifyTransition(
+    tx: Tx,
+    tenantId: string,
+    actorId: string,
+    offering: LockedOffering,
+    action: GradeAction,
+    reason?: string,
+  ) {
+    const course = (
+      await tx.query<{ label: string }>(
+        `SELECT c.code || ' — ' || c.title AS label FROM course_offerings o JOIN courses c ON c.id = o.course_id WHERE o.id = $1`,
+        [offering.id],
+      )
+    ).rows[0].label;
+    const scope = { type: 'course', id: offering.id } as const;
+    if (action === 'submit') {
+      const approvers = await this.notifications.holders(tx, 'grades:approve', scope, [actorId]);
+      await this.notifications.notify(tx, tenantId, approvers, messages.gradesSubmitted(course));
+    } else if (action === 'approve') {
+      const publishers = await this.notifications.holders(tx, 'grades:publish', scope, [actorId]);
+      await this.notifications.notify(tx, tenantId, publishers, messages.gradesApproved(course));
+    } else if (action === 'return' && offering.grades_submitted_by) {
+      await this.notifications.notify(tx, tenantId, [offering.grades_submitted_by], messages.gradesReturned(offering.id, course, reason!));
+    } else if (action === 'publish') {
+      const students = await tx.query<{ student_user_id: string }>('SELECT student_user_id FROM enrollments WHERE offering_id = $1', [
+        offering.id,
+      ]);
+      await this.notifications.notify(
+        tx,
+        tenantId,
+        students.rows.map((r) => r.student_user_id),
+        messages.gradesPublished(course),
+      );
+    }
+  }
+
   private transition(
     tenant: Tenant,
     user: AuthenticatedUser,
@@ -395,6 +435,7 @@ export class OfferingsController {
         after: { gradesStatus: to, ...(reason ? { reason } : {}) },
         ip: req.ip,
       });
+      await this.notifyTransition(tx, tenant.id, user.id, offering, action, reason);
       return { id: offeringId, gradesStatus: to };
     });
   }

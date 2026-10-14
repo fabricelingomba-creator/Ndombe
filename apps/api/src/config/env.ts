@@ -38,6 +38,17 @@ const envSchema = z.object({
   ),
   /** Prestataire « sandbox » (Mobile Money simulé) : jamais en production. */
   PAYMENTS_SANDBOX: z.preprocess((v) => (v === '' ? undefined : v), z.enum(['true', 'false']).optional()),
+  /**
+   * Envoi des e-mails de notification : smtp (production), log (journal, développement)
+   * ou none (aucun e-mail). Par défaut : log hors production, none en production.
+   */
+  EMAIL_TRANSPORT: z.preprocess((v) => (v === '' ? undefined : v), z.enum(['none', 'log', 'smtp']).optional()),
+  /** smtps://utilisateur:motdepasse@smtp.exemple.com:465 (Brevo, Mailgun, SES, Postmark…). */
+  SMTP_URL: z.preprocess((v) => (v === '' ? undefined : v), z.string().url().optional()),
+  /** Adresse d'expédition ; le nom affiché est celui de l'université. */
+  EMAIL_FROM: z.preprocess((v) => (v === '' ? undefined : v), z.email().optional()),
+  /** Fréquence d'envoi des notifications en attente ; 0 désactive la boucle (tests). */
+  NOTIFICATIONS_INTERVAL_MS: z.coerce.number().int().min(0).default(15_000),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -52,7 +63,22 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   if (env.NODE_ENV === 'production' && env.PAYMENTS_SANDBOX === 'true') {
     throw new Error('Configuration invalide : PAYMENTS_SANDBOX interdit en production');
   }
+  const transport = emailTransport(env);
+  if (env.NODE_ENV === 'production' && transport === 'log') {
+    throw new Error('Configuration invalide : EMAIL_TRANSPORT=log interdit en production (données personnelles dans les journaux)');
+  }
+  if (transport === 'smtp' && !env.SMTP_URL) {
+    throw new Error('Configuration invalide : SMTP_URL requis quand EMAIL_TRANSPORT=smtp');
+  }
   return env;
+}
+
+export function emailTransport(env: Env): 'none' | 'log' | 'smtp' {
+  return env.EMAIL_TRANSPORT ?? (env.NODE_ENV === 'production' ? 'none' : 'log');
+}
+
+export function emailFrom(env: Env): string {
+  return env.EMAIL_FROM ?? `no-reply@${env.BASE_DOMAIN}`;
 }
 
 /** Le prestataire simulé est actif hors production, sauf désactivation explicite. */

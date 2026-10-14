@@ -168,3 +168,30 @@ nav.chips { margin-block: 8px; }
 .slip-grid { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 8px 0; font-size: .95rem; }
 .slip-grid dt { color: var(--muted); }
 .slip-grid dd { margin: 0; }
+
+/* Notifications. */
+.header-actions { display: flex; align-items: center; gap: 12px; }
+.bell { position: relative; display: inline-flex; padding: 8px; border-radius: 999px; color: var(--ink); }
+.bell:hover { background: var(--line); }
+.bell-count {
+  position: absolute; top: 0; right: -2px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
+  background: #dc2626; color: #fff; font-size: .7rem; font-weight: 700; line-height: 18px; text-align: center;
+}
+.inbox-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.inbox { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 8px; }
+.inbox-item { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.inbox-item.unread { border-left: 4px solid var(--brand-primary); }
+.inbox-open {
+  all: unset; box-sizing: border-box; cursor: pointer; display: grid; gap: 4px; width: 100%; padding: 12px 14px;
+  border-radius: var(--radius); overflow-wrap: anywhere;
+}
+.inbox-open:hover { background: rgba(0, 0, 0, .03); }
+.inbox-open:focus-visible { outline: 3px solid var(--brand-secondary); outline-offset: 2px; }
+.inbox-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: .8rem; color: var(--muted); }
+.inbox-item:not(.unread) .inbox-title { font-weight: 500; }
+.inbox-body { color: var(--muted); font-size: .95rem; }
+.dot { width: 8px; height: 8px; border-radius: 999px; background: var(--brand-primary); }
+.tag { font-size: .72rem; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink); }
+.preferences { display: grid; gap: 8px; justify-items: start; margin-top: 8px; }
+.preferences .check { display: flex; align-items: center; gap: 8px; }
+.section-tight { margin-top: 32px; }

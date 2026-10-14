@@ -327,6 +327,26 @@ describe('Cours, inscriptions et circuit des notes', () => {
       });
     });
 
+    it('chaque étape prévient la bonne personne, dans sa portée', async () => {
+      const rector = (await h.admin.query<{ id: string }>(`SELECT id FROM users WHERE email = 'recteur@unig.cd'`)).rows[0].id;
+      const received = async (kind: string) =>
+        (
+          await h.admin.query<{ user_id: string }>('SELECT user_id FROM notifications WHERE kind = $1 ORDER BY user_id', [kind])
+        ).rows.map((r) => r.user_id);
+      // Deux soumissions : le SG de la faculté et le recteur, jamais le SG d'une autre faculté.
+      expect(await received('grades.submitted')).toEqual([rector, rector, users.sgSci, users.sgSci].sort());
+      expect(await received('grades.returned')).toEqual([users.prof]);
+      // Approuvée par le SG : le recteur peut publier.
+      expect(await received('grades.approved')).toEqual([rector]);
+      expect(await received('grades.published')).toEqual([users.etu1, users.etu2].sort());
+      const returned = await h.admin.query(`SELECT title, body, link FROM notifications WHERE kind = 'grades.returned'`);
+      expect(returned.rows[0]).toEqual({
+        title: expect.stringContaining('Notes renvoyées : INF101'),
+        body: 'Motif : Vérifier la note de etu2',
+        link: `/espace/notation/${offering}`,
+      });
+    });
+
     it("on n'approuve pas sa propre feuille (quatre yeux)", async () => {
       await api()
         .put(`/v1/offerings/${offering2}/grades`)

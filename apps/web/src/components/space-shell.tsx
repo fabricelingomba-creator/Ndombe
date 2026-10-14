@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { SpaceHeaderActions } from '@/components/notification-bell';
 import { SiteFooter, SiteHeader } from '@/components/site-header';
 import type { Manifest } from '@/lib/types';
 
@@ -18,13 +19,7 @@ export function SpaceShell({
     <>
       <SiteHeader
         manifest={manifest}
-        right={
-          <form action="/auth/logout" method="post">
-            <button type="submit" className="button button-outline-dark">
-              Se déconnecter
-            </button>
-          </form>
-        }
+        right={<SpaceHeaderActions />}
       />
       <main className="container section">
         {back && (

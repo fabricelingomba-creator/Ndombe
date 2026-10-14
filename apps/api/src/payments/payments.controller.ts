@@ -25,6 +25,8 @@ import { DatabaseService } from '../db/database.service';
 import { CurrentTenant } from '../tenancy/current-tenant.decorator';
 import { Tenant } from '../tenancy/tenant';
 import { TenantResolverService } from '../tenancy/tenant-resolver.service';
+import { messages } from '../notifications/catalog';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CURRENCIES, toMinor } from './money';
 import { PAYMENT_COLUMNS, PaymentsService } from './payments.service';
 import { InvalidSignatureError, PROVIDER_KEYS, ProviderKey } from './providers/provider';
@@ -68,6 +70,7 @@ export class PaymentsAdminController {
     private readonly db: DatabaseService,
     private readonly audit: AuditService,
     private readonly payments: PaymentsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   @Get('payment-providers')
@@ -169,10 +172,15 @@ export class PaymentsAdminController {
     @Req() req: Request,
   ) {
     return this.db.withTenant(tenant.id, async (tx) => {
-      const fee = await tx.query('SELECT 1 FROM fee_structures WHERE id = $1', [feeId]);
-      if (!fee.rowCount) throw new NotFoundException('Frais introuvable');
+      const fee = (
+        await tx.query<{ name: string; amount_minor: string; currency: string; due_on: string }>(
+          'SELECT name, amount_minor, currency, due_on::text AS due_on FROM fee_structures WHERE id = $1',
+          [feeId],
+        )
+      ).rows[0];
+      if (!fee) throw new NotFoundException('Frais introuvable');
       // Étudiant = compte actif détenant self:payments:write.
-      const created = await tx.query(
+      const created = await tx.query<{ id: string; student_user_id: string }>(
         `INSERT INTO invoices (tenant_id, fee_structure_id, student_user_id, amount_minor, currency, due_on)
          SELECT f.tenant_id, f.id, u.id, f.amount_minor, f.currency, f.due_on
            FROM fee_structures f, users u
@@ -180,8 +188,14 @@ export class PaymentsAdminController {
             AND EXISTS (SELECT 1 FROM role_assignments ra JOIN role_permissions rp ON rp.role_id = ra.role_id
                          WHERE ra.user_id = u.id AND rp.permission = 'self:payments:write')
          ON CONFLICT (fee_structure_id, student_user_id) DO NOTHING
-         RETURNING id`,
+         RETURNING id, student_user_id`,
         [feeId],
+      );
+      await this.notifications.notify(
+        tx,
+        tenant.id,
+        created.rows.map((r) => r.student_user_id),
+        messages.invoiceIssued({ feeName: fee.name, amountMinor: fee.amount_minor, currency: fee.currency, dueOn: fee.due_on }),
       );
       await this.audit.record(tx, tenant.id, {
         actorUserId: user.id,

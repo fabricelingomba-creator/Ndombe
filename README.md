@@ -79,6 +79,12 @@ banque (deux comptes de démonstration) et téléverser son bordereau, que le
 Recteur valide ou refuse sur `/espace/finances`. Aucun argent ne circule ;
 ce prestataire est refusé au démarrage en production.
 
+Chaque compte a une boîte de notifications (la cloche en haut de l'espace) :
+facture émise, paiement reçu ou refusé, bordereau à valider ou traité, notes à
+approuver, renvoyées ou publiées, relevé demandé ou prêt, rappels avant et
+après l'échéance, annonces. En développement, les e-mails correspondants sont
+écrits dans le journal de l'API au lieu d'être envoyés (`EMAIL_TRANSPORT=log`).
+
 Obtenir un jeton et appeler l'API :
 
 ```bash

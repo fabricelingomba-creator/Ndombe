@@ -162,3 +162,33 @@ bordereau en attente bloque tout autre paiement de la facture.
 Le fichier est stocké en base (`bytea`, sous RLS) en attendant un stockage objet.
 Il n'est servi qu'aux valideurs : une image s'affiche dans un bac à sable
 (`Content-Security-Policy: sandbox`), un PDF est téléchargé.
+
+## Notifications
+
+Un seul point d'entrée, `NotificationsService.notify(tx, …)`, appelé dans la
+transaction de l'événement : la notification n'existe que si l'action est
+enregistrée. Les textes sont construits dans `notifications/catalog.ts`.
+
+- **Dans l'application** : table `notifications` (une ligne par destinataire,
+  lue ou non). `GET /v1/me/notifications`, `…/unread-count`, `POST …/:id/read`,
+  `POST …/read-all` ; chacun ne voit que les siennes, la RLS isole les universités.
+- **Par e-mail** : la même transaction écrit la file `notification_deliveries`.
+  Une boucle d'arrière-plan (`NotificationDispatcher`) réserve chaque envoi
+  (`FOR UPDATE SKIP LOCKED`, plusieurs instances possibles), l'envoie hors
+  transaction, puis réessaie après 1, 5, 30 et 120 minutes avant d'abandonner.
+  Transport SMTP avec TLS exigé ; `log` en développement, interdit en production.
+  Tout texte variable est échappé dans le HTML ; les liens pointent vers le
+  domaine de l'université.
+- **Destinataires** : les détenteurs de la permission concernée dans la portée
+  de l'objet (un SG de faculté n'est prévenu que pour ses cours), jamais l'auteur
+  de l'action.
+- **Planifié** (toutes les 5 minutes) : rappel 3 jours avant l'échéance, relance
+  après (fenêtre de 30 jours), une seule fois chacun grâce à `dedup_key`, suspendus
+  si un paiement est en attente ; annonces diffusées une fois publiées.
+- **Préférences** : par catégorie (factures, études, tâches, annonces), l'utilisateur
+  coupe les e-mails ; la notification reste dans l'application. Les e-mails déjà
+  en file pour une catégorie coupée ne partent plus.
+
+SMS et notifications push (app mobile) se brancheront comme d'autres canaux de
+`notification_deliveries`. Les SMS demandent un agrégateur, comme le Mobile Money.
+

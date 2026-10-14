@@ -232,3 +232,27 @@ export interface BankSlipReview {
   invoiceAmountMinor: number;
   reviewerName: string | null;
 }
+
+export type NotificationCategory = 'finance' | 'academic' | 'tasks' | 'announcements';
+
+export interface AppNotification {
+  id: string;
+  kind: string;
+  category: NotificationCategory;
+  title: string;
+  body: string;
+  link: string | null;
+  createdAt: string;
+  readAt: string | null;
+}
+
+export interface NotificationInbox {
+  items: AppNotification[];
+  unreadCount: number;
+}
+
+export interface NotificationPreference {
+  category: NotificationCategory;
+  label: string;
+  email: boolean;
+}

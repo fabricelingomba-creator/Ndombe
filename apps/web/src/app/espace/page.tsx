@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { FormattedDate } from '@/components/date';
+import { SpaceHeaderActions } from '@/components/notification-bell';
 import { SiteFooter, SiteHeader } from '@/components/site-header';
 import { ApiError, getAnnouncements, getManifest } from '@/lib/api';
 import { requireUser } from '@/lib/auth';
@@ -35,13 +36,7 @@ export default async function SpacePage() {
     <>
       <SiteHeader
         manifest={manifest}
-        right={
-          <form action="/auth/logout" method="post">
-            <button type="submit" className="button button-outline-dark">
-              Se déconnecter
-            </button>
-          </form>
-        }
+        right={<SpaceHeaderActions />}
       />
       <main className="container section">
         <h1>Bonjour, {me.fullName}</h1>

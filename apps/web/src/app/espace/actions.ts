@@ -7,6 +7,7 @@ import { apiSend, apiSendForm, getPaymentOptions } from '@/lib/api';
 import { parseScore, UUID } from '@/lib/grades';
 import { normalizePhone, parseAmount } from '@/lib/payments';
 import { portalRequest } from '@/lib/request';
+import { safeReturnTo } from '@/lib/return-to';
 import { readAccess } from '@/lib/session';
 
 /**
@@ -297,4 +298,41 @@ export async function toggleBankAccount(accountId: string, enabled: boolean, _pr
   if (!res.ok) return { ok: false, message: res.message };
   revalidatePath('/espace/finances');
   return { ok: true, message: enabled ? 'Compte réactivé.' : 'Compte retiré des choix proposés aux étudiants.' };
+}
+
+/** Ouvre une notification : elle est marquée lue, puis on suit son lien interne. */
+export async function openNotification(notificationId: string): Promise<void> {
+  if (!UUID.test(notificationId)) return;
+  const s = await session();
+  if (!s) redirect('/connexion?returnTo=%2Fespace%2Fnotifications');
+  // Le lien vient de l'API (et non du formulaire) ; il reste limité au portail.
+  const res = await apiSend<{ link: string | null }>(s.host, `/v1/me/notifications/${notificationId}/read`, s.token, 'POST');
+  revalidatePath('/espace/notifications');
+  redirect(safeReturnTo(res.ok ? res.data.link : null, '/espace/notifications'));
+}
+
+export async function markAllNotificationsRead(_prev: ActionResult, _form: FormData): Promise<ActionResult> {
+  const s = await session();
+  if (!s) return EXPIRED;
+  const res = await apiSend<{ updated: number }>(s.host, '/v1/me/notifications/read-all', s.token, 'POST');
+  if (!res.ok) return { ok: false, message: res.message };
+  revalidatePath('/espace/notifications');
+  return { ok: true, message: res.data.updated ? 'Toutes les notifications sont lues.' : 'Rien de nouveau.' };
+}
+
+const NOTIFICATION_CATEGORIES = ['finance', 'academic', 'tasks', 'announcements'] as const;
+
+export async function saveNotificationPreferences(_prev: ActionResult, form: FormData): Promise<ActionResult> {
+  const s = await session();
+  if (!s) return EXPIRED;
+  // Une case décochée n'est pas envoyée : chaque catégorie affichée porte un champ « shown ».
+  const shown = new Set(form.getAll('shown').map(String));
+  const email: Record<string, boolean> = {};
+  for (const category of NOTIFICATION_CATEGORIES) {
+    if (shown.has(category)) email[category] = form.get(`email:${category}`) === 'on';
+  }
+  const res = await apiSend(s.host, '/v1/me/notification-preferences', s.token, 'PUT', { email });
+  if (!res.ok) return { ok: false, message: res.message };
+  revalidatePath('/espace/notifications');
+  return { ok: true, message: 'Préférences enregistrées.' };
 }
