@@ -67,6 +67,8 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     KEYCLOAK_URL: 'https://auth.elongo.test',
     BASE_DOMAIN: 'elongo.test',
     TENANT_CACHE_TTL_MS: '0',
+    PAYMENT_SECRETS_KEY: randomBytes(32).toString('base64'),
+    PAYMENTS_SANDBOX: 'true',
     ...options.env,
   });
 
@@ -83,7 +85,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
         }),
     )
     .compile();
-  const app = configureApp(moduleRef.createNestApplication({ logger: false }), env);
+  const app = configureApp(moduleRef.createNestApplication({ logger: false, rawBody: true }), env);
   await app.init();
 
   const admin = new Pool({ connectionString: withDb(SERVER_URL, dbName) });

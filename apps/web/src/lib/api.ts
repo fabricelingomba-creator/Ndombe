@@ -3,12 +3,17 @@ import { cache } from 'react';
 import { config } from './config';
 import type {
   Announcement,
+  FeeStructure,
   GradeSheet,
   Homepage,
   Manifest,
   Me,
   MyCourse,
+  MyInvoice,
+  PaymentOption,
+  PaymentProviderConfig,
   ReviewItem,
+  StudentInvoice,
   TeachingOffering,
   TermGrades,
   Transcript,
@@ -76,6 +81,16 @@ export const getMyTranscripts = (host: string, token: string) => apiFetch<Transc
 export const getTranscriptQueue = (host: string, token: string, status: 'requested' | 'validated') =>
   apiFetch<TranscriptRequest[]>(host, `/v1/transcripts?status=${status}`, token);
 
+export const getMyInvoices = (host: string, token: string) => apiFetch<MyInvoice[]>(host, '/v1/me/invoices', token);
+export const getPaymentOptions = (host: string, token: string) =>
+  apiFetch<PaymentOption[]>(host, '/v1/me/payment-options', token);
+export const getFeeStructures = (host: string, token: string) =>
+  apiFetch<FeeStructure[]>(host, '/v1/fee-structures', token);
+export const getInvoices = (host: string, token: string, status?: 'open' | 'paid') =>
+  apiFetch<StudentInvoice[]>(host, `/v1/invoices${status ? `?status=${status}` : ''}`, token);
+export const getPaymentProviders = (host: string, token: string) =>
+  apiFetch<PaymentProviderConfig[]>(host, '/v1/payment-providers', token);
+
 /** Vérification publique d'un code imprimé sur un relevé ; null si inconnu. */
 export async function verifyTranscript(host: string, code: string): Promise<TranscriptVerification | null> {
   try {
@@ -84,6 +99,14 @@ export async function verifyTranscript(host: string, code: string): Promise<Tran
     if (err instanceof ApiError && err.status === 404) return null;
     throw err;
   }
+}
+
+/**
+ * Relaie tel quel un webhook de prestataire de paiement : corps brut (la
+ * signature porte sur l'octet près) et en-têtes de signature.
+ */
+export async function relayPaymentWebhook(path: string, rawBody: ArrayBuffer, headers: Record<string, string>) {
+  return fetch(`${config.apiUrl}${path}`, { method: 'POST', headers, body: rawBody, cache: 'no-store' });
 }
 
 /** Fichier binaire (PDF) de l'API, relayé tel quel au navigateur. */
@@ -103,10 +126,12 @@ export async function apiSend<T>(
   token: string,
   method: 'POST' | 'PUT' | 'DELETE',
   body?: unknown,
+  extraHeaders: Record<string, string> = {},
 ): Promise<SendResult<T>> {
   const res = await fetch(`${config.apiUrl}${path}`, {
     method,
     headers: {
+      ...extraHeaders,
       'x-elongo-host': host,
       accept: 'application/json',
       authorization: `Bearer ${token}`,

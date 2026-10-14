@@ -34,7 +34,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { key: 'courses', label: 'Mes cours', href: '/espace/cours', anyOf: ['self:courses:read'] },
       { key: 'assignments', label: 'Devoirs', href: '/espace/devoirs', anyOf: ['self:assignments:submit'], upcoming: true },
       { key: 'grades', label: 'Notes et relevés', href: '/espace/notes', anyOf: ['self:grades:read'] },
-      { key: 'payments', label: 'Paiements', href: '/espace/paiements', anyOf: ['self:payments:write'], upcoming: true },
+      { key: 'payments', label: 'Paiements', href: '/espace/paiements', anyOf: ['self:payments:write'] },
     ],
   },
   {
@@ -53,7 +53,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { key: 'structure', label: 'Facultés et départements', href: '/espace/structure', anyOf: ['academic:structure:write'], upcoming: true },
       { key: 'grade-approval', label: 'Validation des notes', href: '/espace/validation-notes', anyOf: ['grades:approve', 'grades:publish'] },
       { key: 'transcripts', label: 'Relevés officiels', href: '/espace/releves-validation', anyOf: ['transcripts:validate'], universityWide: true },
-      { key: 'finance', label: 'Finances', href: '/espace/finances', anyOf: ['finance:read'], upcoming: true },
+      { key: 'finance', label: 'Finances', href: '/espace/finances', anyOf: ['finance:read', 'tenant:config:write'] },
       { key: 'research', label: 'Recherche', href: '/espace/recherche', anyOf: ['research:labs:manage'], upcoming: true },
       { key: 'audit', label: "Journal d'audit", href: '/espace/audit', anyOf: ['audit:read'], upcoming: true },
     ],

@@ -18,7 +18,10 @@ export function configureApp(app: INestApplication, env: Env) {
 
 async function bootstrap() {
   const env = loadEnv();
-  const app = await NestFactory.create<NestExpressApplication>(AppModule.forRoot(env));
+  const app = await NestFactory.create<NestExpressApplication>(AppModule.forRoot(env), {
+    // Corps brut conservé pour vérifier la signature des webhooks de paiement.
+    rawBody: true,
+  });
   configureApp(app, env);
   await app.listen(env.PORT);
   console.log(`API Elongo sur le port ${env.PORT}`);

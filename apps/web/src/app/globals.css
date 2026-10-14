@@ -134,3 +134,27 @@ textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border
 .verify-result dt { font-weight: 600; }
 .verify-result dd { margin: 0; }
 .hash { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; overflow-wrap: anywhere; }
+
+/* Paiements. */
+.amount { font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; margin: 0; white-space: nowrap; }
+.pay-form, .form-grid { display: grid; gap: 12px; justify-items: start; margin-top: 12px; }
+.form-grid label, .phone-field { display: grid; gap: 4px; font-weight: 600; font-size: .9rem; width: min(100%, 360px); }
+.pay-form fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 6px; }
+.pay-form legend { font-weight: 600; font-size: .9rem; margin-bottom: 4px; }
+.choice { display: flex; align-items: center; gap: 8px; font-weight: 400; }
+.text-input { padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-weight: 400; background: var(--surface); }
+.text-input:focus-visible { outline: 3px solid var(--brand-secondary); outline-offset: 1px; }
+/* Le numéro n'est demandé que pour un moyen Mobile Money. */
+.pay-form .phone-field { display: none; }
+.pay-form:has(input[data-phone]:checked) .phone-field { display: grid; }
+.pending { display: grid; gap: 10px; margin-top: 12px; justify-items: start; }
+.sandbox { border: 1px dashed var(--line); border-radius: var(--radius); padding: 10px 14px; }
+.sandbox .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+details.card summary { cursor: pointer; font-weight: 600; }
+.chips a.chip[aria-current='page'] { background: var(--brand-primary); color: var(--brand-on-primary); border-color: var(--brand-primary); }
+.chips a.chip { text-decoration: none; color: var(--ink); }
+.stats .small-dd { font-size: 1rem; font-weight: 600; }
+.payment-pending, .invoice-open { background: #fefce8; color: #854d0e; border-color: #fde68a; }
+.payment-succeeded, .invoice-paid { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
+.payment-failed, .invoice-cancelled { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+nav.chips { margin-block: 8px; }

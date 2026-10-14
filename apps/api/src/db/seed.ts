@@ -1,7 +1,8 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../app.module';
-import { loadEnv } from '../config/env';
+import { loadEnv, sandboxPaymentsEnabled } from '../config/env';
+import { PaymentsService } from '../payments/payments.service';
 import { TenantProvisioningService } from '../platform/tenant-provisioning.service';
 import { DatabaseService, Tx } from './database.service';
 
@@ -33,7 +34,21 @@ async function seed() {
       tenantId = tenant.id;
       console.log(`Université demo créée : ${tenant.domains.join(', ')}`);
     }
-    await app.get(DatabaseService).withPlatform(tenantId!, (tx) => seedAcademics(tx, tenantId!));
+    const db = app.get(DatabaseService);
+    await db.withPlatform(tenantId!, (tx) => seedAcademics(tx, tenantId!));
+    await db.withPlatform(tenantId!, async (tx) => {
+      await seedFees(tx, tenantId!);
+      // Mobile Money simulé, si la clé de chiffrement est configurée (jamais en production).
+      if (env.PAYMENT_SECRETS_KEY && sandboxPaymentsEnabled(env)) {
+        const configured = await tx.query(`SELECT 1 FROM tenant_payment_providers WHERE provider = 'sandbox'`);
+        if (!configured.rowCount) {
+          await app.get(PaymentsService).configureProvider(tx, tenantId!, 'sandbox', {}, true);
+          console.log('Paiement Mobile Money simulé activé.');
+        }
+      } else {
+        console.log('PAYMENT_SECRETS_KEY absent : paiements en ligne non activés.');
+      }
+    });
   } finally {
     await app.close();
   }
@@ -117,6 +132,30 @@ async function seedAcademics(tx: Tx, tenantId: string) {
     }
   }
   console.log('Données académiques de démonstration créées (INF101, INF102).');
+}
+
+/** Deux frais de démonstration (dollars et francs congolais) facturés aux étudiants, une seule fois. */
+async function seedFees(tx: Tx, tenantId: string) {
+  const existing = await tx.query('SELECT 1 FROM fee_structures LIMIT 1');
+  if (existing.rowCount) return;
+  for (const [code, name, amountMinor, currency, dueOn] of [
+    ['MIN-2026', 'Minerval 2026-2027 (1re tranche)', 25000, 'USD', '2026-11-30'],
+    ['BIB-2026', 'Frais de bibliothèque', 2500000, 'CDF', '2026-12-15'],
+  ] as const) {
+    await tx.query(
+      `WITH fee AS (
+         INSERT INTO fee_structures (tenant_id, code, name, amount_minor, currency, due_on)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *
+       )
+       INSERT INTO invoices (tenant_id, fee_structure_id, student_user_id, amount_minor, currency, due_on)
+       SELECT fee.tenant_id, fee.id, u.id, fee.amount_minor, fee.currency, fee.due_on
+         FROM fee, users u
+        WHERE EXISTS (SELECT 1 FROM role_assignments ra JOIN role_permissions rp ON rp.role_id = ra.role_id
+                       WHERE ra.user_id = u.id AND rp.permission = 'self:payments:write')`,
+      [tenantId, code, name, amountMinor, currency, dueOn],
+    );
+  }
+  console.log('Frais de démonstration facturés (MIN-2026, BIB-2026).');
 }
 
 seed().catch((err) => {

@@ -8,7 +8,7 @@ Le document d'architecture (stack, isolation des données, RBAC, paiements,
 notifications, mobile, feuille de route) est tenu dans le projet Claude ;
 ce dépôt en reprend les décisions dans [docs/architecture.md](docs/architecture.md).
 
-## État : phase 0 terminée, phase 1 en cours
+## État : phases 0 et 1 terminées, phase 2 en cours
 
 | Brique | Où |
 | --- | --- |
@@ -24,6 +24,7 @@ ce dépôt en reprend les décisions dans [docs/architecture.md](docs/architectu
 | Portail web à la marque (Next.js) : accueil, connexion, espace | `apps/web` |
 | Cours, inscriptions, notes et circuit de validation | `apps/api/src/academic`, `apps/web/src/app/espace` |
 | Relevés officiels en PDF, vérifiables par code | `apps/api/src/transcripts`, `apps/web/src/app/verifier` |
+| Frais, factures et paiements Mobile Money, webhooks signés | `apps/api/src/payments`, `apps/web/src/app/espace/paiements` |
 
 ## Démarrer en local
 
@@ -33,6 +34,8 @@ Prérequis : Node 22, pnpm 10, Docker.
 pnpm install
 docker compose up -d                  # PostgreSQL 16 + Keycloak
 cp apps/api/.env.example apps/api/.env
+# Facultatif, pour les paiements : renseigner PAYMENT_SECRETS_KEY dans apps/api/.env
+#   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 pnpm db:migrate                       # rôles de connexion + migrations
 pnpm db:seed                          # université « demo »
 pnpm dev                              # API sur http://localhost:3000
@@ -67,6 +70,12 @@ Comptes Keycloak de développement (http://localhost:8080) :
 Le seed crée la Faculté des sciences, le département Informatique, la période
 2026-S1 et les cours INF101 et INF102 ; chaque compte se relie à son profil à
 la première connexion (e-mail vérifié).
+
+Si `PAYMENT_SECRETS_KEY` est renseignée, le seed facture aussi deux frais aux
+étudiants (minerval en dollars, bibliothèque en francs congolais) et active le
+Mobile Money simulé : sur `/espace/paiements`, l'étudiant paie avec un numéro
+fictif puis simule la validation sur son téléphone. Aucun argent ne circule ;
+ce prestataire est refusé au démarrage en production.
 
 Obtenir un jeton et appeler l'API :
 
