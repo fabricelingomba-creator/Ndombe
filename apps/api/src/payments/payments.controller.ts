@@ -248,7 +248,11 @@ export class MyPaymentsController {
       ).rows;
       const payments = (
         await tx.query<{ invoiceId: string }>(
-          `SELECT ${PAYMENT_COLUMNS} FROM payments p WHERE p.student_user_id = $1 ORDER BY p.created_at DESC`,
+          `SELECT ${PAYMENT_COLUMNS}, s.reference AS "slipReference", a.bank_name AS "bankName"
+             FROM payments p
+             LEFT JOIN bank_slips s ON s.payment_id = p.id
+             LEFT JOIN bank_accounts a ON a.id = s.bank_account_id
+            WHERE p.student_user_id = $1 ORDER BY p.created_at DESC`,
           [user.id],
         )
       ).rows;

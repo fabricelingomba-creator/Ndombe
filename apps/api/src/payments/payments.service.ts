@@ -144,8 +144,9 @@ export class PaymentsService {
 
       if (invoice.status !== 'open') throw new ConflictException('Facture déjà réglée ou annulée');
       const pending = await tx.query(
+        // Un bordereau bancaire en attente bloque aussi, quel que soit son âge.
         `SELECT 1 FROM payments WHERE invoice_id = $1 AND status = 'pending'
-            AND created_at > now() - make_interval(mins => $2)`,
+            AND (provider = 'bank' OR created_at > now() - make_interval(mins => $2))`,
         [invoiceId, PENDING_LOCK_MINUTES],
       );
       if (pending.rowCount) throw new ConflictException('Un paiement est déjà en cours pour cette facture');
@@ -290,7 +291,7 @@ export class PaymentsService {
   }
 
   /** La facture passe à « payée » quand les paiements aboutis couvrent son montant. */
-  private async settleInvoice(tx: Tx, invoiceId: string) {
+  async settleInvoice(tx: Tx, invoiceId: string) {
     await tx.query(
       `UPDATE invoices i SET status = 'paid', paid_at = now()
         WHERE i.id = $1 AND i.status = 'open'

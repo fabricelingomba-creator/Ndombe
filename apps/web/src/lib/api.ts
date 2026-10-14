@@ -3,6 +3,8 @@ import { cache } from 'react';
 import { config } from './config';
 import type {
   Announcement,
+  BankAccount,
+  BankSlipReview,
   FeeStructure,
   GradeSheet,
   Homepage,
@@ -88,6 +90,11 @@ export const getFeeStructures = (host: string, token: string) =>
   apiFetch<FeeStructure[]>(host, '/v1/fee-structures', token);
 export const getInvoices = (host: string, token: string, status?: 'open' | 'paid') =>
   apiFetch<StudentInvoice[]>(host, `/v1/invoices${status ? `?status=${status}` : ''}`, token);
+export const getMyBankAccounts = (host: string, token: string) =>
+  apiFetch<BankAccount[]>(host, '/v1/me/bank-accounts', token);
+export const getBankAccounts = (host: string, token: string) => apiFetch<BankAccount[]>(host, '/v1/bank-accounts', token);
+export const getBankSlips = (host: string, token: string, status: 'pending' | 'accepted' | 'rejected') =>
+  apiFetch<BankSlipReview[]>(host, `/v1/bank-payments?status=${status}`, token);
 export const getPaymentProviders = (host: string, token: string) =>
   apiFetch<PaymentProviderConfig[]>(host, '/v1/payment-providers', token);
 
@@ -110,9 +117,9 @@ export async function relayPaymentWebhook(path: string, rawBody: ArrayBuffer, he
 }
 
 /** Fichier binaire (PDF) de l'API, relayé tel quel au navigateur. */
-export async function apiDownload(host: string, path: string, token: string): Promise<Response> {
+export async function apiDownload(host: string, path: string, token: string, accept = 'application/pdf'): Promise<Response> {
   return fetch(`${config.apiUrl}${path}`, {
-    headers: { 'x-elongo-host': host, authorization: `Bearer ${token}`, accept: 'application/pdf' },
+    headers: { 'x-elongo-host': host, authorization: `Bearer ${token}`, accept },
     cache: 'no-store',
   });
 }
@@ -147,6 +154,32 @@ export async function apiSend<T>(
     // Réponse vide (204) ou non JSON.
   }
   if (res.ok) return { ok: true, data: json as T };
+  const message = Array.isArray(json?.message) ? json.message.join(', ') : json?.message;
+  return { ok: false, status: res.status, message: typeof message === 'string' ? message : `Erreur ${res.status}` };
+}
+
+/** Envoi multipart (fichier joint) vers l'API ; même contrat que apiSend. */
+export async function apiSendForm<T>(
+  host: string,
+  path: string,
+  token: string,
+  form: FormData,
+  extraHeaders: Record<string, string> = {},
+): Promise<SendResult<T>> {
+  const res = await fetch(`${config.apiUrl}${path}`, {
+    method: 'POST',
+    headers: { ...extraHeaders, 'x-elongo-host': host, accept: 'application/json', authorization: `Bearer ${token}` },
+    body: form,
+    cache: 'no-store',
+  });
+  let json: Record<string, unknown> | null = null;
+  try {
+    json = (await res.json()) as Record<string, unknown>;
+  } catch {
+    // Réponse non JSON (413 d'un proxy, par exemple).
+  }
+  if (res.ok) return { ok: true, data: json as T };
+  if (res.status === 413) return { ok: false, status: 413, message: 'Fichier trop lourd (5 Mo au plus).' };
   const message = Array.isArray(json?.message) ? json.message.join(', ') : json?.message;
   return { ok: false, status: res.status, message: typeof message === 'string' ? message : `Erreur ${res.status}` };
 }

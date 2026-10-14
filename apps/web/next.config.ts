@@ -4,6 +4,10 @@ const config: NextConfig = {
   output: 'standalone',
   poweredByHeader: false,
   reactStrictMode: true,
+  experimental: {
+    // Bordereaux de paiement téléversés (5 Mo au plus côté API).
+    serverActions: { bodySizeLimit: '6mb' },
+  },
   async headers() {
     return [
       {

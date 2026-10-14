@@ -3,12 +3,19 @@ import Link from 'next/link';
 import { ActionForm, SubmitButton } from '@/components/action-form';
 import { FormattedDate } from '@/components/date';
 import { AccessDenied, SpaceShell } from '@/components/space-shell';
-import { getFeeStructures, getInvoices, getManifest, getPaymentProviders } from '@/lib/api';
+import { getBankAccounts, getBankSlips, getFeeStructures, getInvoices, getManifest, getPaymentProviders } from '@/lib/api';
 import { requireUser } from '@/lib/auth';
 import { formatMoney, INVOICE_LABELS, totalsByCurrency } from '@/lib/payments';
 import { portalRequest } from '@/lib/request';
-import type { PaymentProviderConfig } from '@/lib/types';
-import { configurePaymentProvider, createFeeStructure, issueInvoices } from '../actions';
+import type { BankAccount, BankSlipReview, FeeStructure, PaymentProviderConfig, StudentInvoice } from '@/lib/types';
+import {
+  configurePaymentProvider,
+  createBankAccount,
+  createFeeStructure,
+  issueInvoices,
+  reviewBankSlip,
+  toggleBankAccount,
+} from '../actions';
 
 export const metadata: Metadata = { title: 'Finances' };
 
@@ -26,7 +33,8 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
   const canRead = me.permissions.includes('finance:read');
   const canWriteFees = me.permissions.includes('fees:structures:write');
   const canConfigure = me.permissions.includes('tenant:config:write');
-  if (!canRead && !canConfigure) {
+  const canValidate = me.permissions.includes('payments:validate');
+  if (!canRead && !canConfigure && !canValidate) {
     return (
       <SpaceShell manifest={manifest} title="Finances">
         <AccessDenied />
@@ -35,16 +43,25 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
   }
   const { statut } = await searchParams;
   const status = statut === 'open' || statut === 'paid' ? statut : undefined;
-  const [fees, all, providers] = await Promise.all([
-    canRead ? getFeeStructures(host, accessToken) : Promise.resolve([]),
-    canRead ? getInvoices(host, accessToken) : Promise.resolve([]),
-    canConfigure ? getPaymentProviders(host, accessToken) : Promise.resolve([]),
+  const none = <T,>(): Promise<T[]> => Promise.resolve([]);
+  const [fees, all, providers, accounts, pendingSlips, accepted, rejected] = await Promise.all([
+    canRead ? getFeeStructures(host, accessToken) : none<FeeStructure>(),
+    canRead ? getInvoices(host, accessToken) : none<StudentInvoice>(),
+    canConfigure ? getPaymentProviders(host, accessToken) : none<PaymentProviderConfig>(),
+    canRead ? getBankAccounts(host, accessToken) : none<BankAccount>(),
+    canValidate ? getBankSlips(host, accessToken, 'pending') : none<BankSlipReview>(),
+    canValidate ? getBankSlips(host, accessToken, 'accepted') : none<BankSlipReview>(),
+    canValidate ? getBankSlips(host, accessToken, 'rejected') : none<BankSlipReview>(),
   ]);
+  const decided = [...accepted, ...rejected]
+    .sort((a, b) => (b.reviewedAt ?? '').localeCompare(a.reviewedAt ?? ''))
+    .slice(0, 20);
   const invoices = status ? all.filter((i) => i.status === status) : all;
   const locale = manifest.locale;
 
   return (
     <SpaceShell manifest={manifest} title="Finances">
+      {canValidate && <SlipsSection pending={pendingSlips} decided={decided} locale={locale} />}
       {canRead && (
         <>
           <dl className="stats">
@@ -188,6 +205,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
         </>
       )}
 
+      {(canRead || canConfigure) && <BankAccountsSection accounts={accounts} canConfigure={canConfigure} />}
       {canConfigure && <ProvidersSection providers={providers} />}
     </SpaceShell>
   );
@@ -218,6 +236,184 @@ function ProvidersSection({ providers }: { providers: PaymentProviderConfig[] })
           )}
         </li>
       </ul>
+    </section>
+  );
+}
+
+/** Bordereaux bancaires envoyés par les étudiants : contrôle, puis validation ou refus. */
+function SlipsSection({
+  pending,
+  decided,
+  locale,
+}: {
+  pending: BankSlipReview[];
+  decided: BankSlipReview[];
+  locale: string;
+}) {
+  return (
+    <section className="queue" aria-labelledby="bordereaux">
+      <h2 id="bordereaux">
+        Bordereaux à valider <span className="count">{pending.length}</span>
+      </h2>
+      <p className="small muted">
+        Avant de valider, ouvrez le bordereau et vérifiez que le dépôt figure sur le relevé du compte, au bon montant.
+        Valider règle la facture de l’étudiant ; la décision est définitive.
+      </p>
+      {pending.length === 0 ? (
+        <p className="muted">Aucun bordereau en attente.</p>
+      ) : (
+        <ul className="cards single">
+          {pending.map((slip) => (
+            <li key={slip.id} className="card">
+              <div className="row-card">
+                <div>
+                  <p className="card-meta">
+                    Reçu le <FormattedDate iso={slip.submittedAt} locale={locale} />
+                  </p>
+                  <h3>{slip.studentName}</h3>
+                  <p className="small muted">
+                    {slip.studentEmail} · {slip.feeName}
+                  </p>
+                </div>
+                <p className="amount">{formatMoney(slip.amountMinor, slip.currency, locale)}</p>
+              </div>
+              <dl className="slip-grid">
+                <dt>Bordereau</dt>
+                <dd className="hash">{slip.reference}</dd>
+                <dt>Banque</dt>
+                <dd>
+                  {slip.bankName} · <span className="hash">{slip.accountNumber}</span>
+                </dd>
+                <dt>Date du dépôt</dt>
+                <dd>
+                  <FormattedDate iso={slip.paidOn} locale={locale} />
+                </dd>
+                <dt>Facture</dt>
+                <dd>{formatMoney(slip.invoiceAmountMinor, slip.currency, locale)}</dd>
+              </dl>
+              <a className="button button-outline-dark" href={`/espace/finances/bordereaux/${slip.id}`} target="_blank" rel="noopener">
+                {slip.fileType === 'application/pdf' ? 'Télécharger le bordereau (PDF)' : 'Voir le bordereau'}
+              </a>
+              <div className="review-actions">
+                <ActionForm action={reviewBankSlip.bind(null, slip.id, 'accept')}>
+                  <SubmitButton>Valider le paiement</SubmitButton>
+                </ActionForm>
+                <ActionForm action={reviewBankSlip.bind(null, slip.id, 'reject')} className="return-form">
+                  <label htmlFor={`reason-${slip.id}`}>Motif du refus (visible par l’étudiant)</label>
+                  <textarea id={`reason-${slip.id}`} name="reason" rows={2} maxLength={500} required minLength={3} />
+                  <SubmitButton variant="outline">Refuser</SubmitButton>
+                </ActionForm>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {decided.length > 0 && (
+        <details className="card">
+          <summary>Derniers bordereaux traités</summary>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Étudiant</th>
+                  <th scope="col">Bordereau</th>
+                  <th scope="col" className="num">Montant</th>
+                  <th scope="col">Décision</th>
+                  <th scope="col">Par</th>
+                </tr>
+              </thead>
+              <tbody>
+                {decided.map((slip) => (
+                  <tr key={slip.id}>
+                    <td>{slip.studentName}</td>
+                    <td className="hash">{slip.reference}</td>
+                    <td className="num">{formatMoney(slip.amountMinor, slip.currency, locale)}</td>
+                    <td>
+                      <span className={`status ${slip.decision === 'accepted' ? 'payment-succeeded' : 'payment-failed'}`}>
+                        {slip.decision === 'accepted' ? 'Validé' : 'Refusé'}
+                      </span>
+                      {slip.failureReason && <div className="small muted">{slip.failureReason}</div>}
+                    </td>
+                    <td>{slip.reviewerName}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
+    </section>
+  );
+}
+
+/** Comptes sur lesquels les étudiants déposent leurs frais. */
+function BankAccountsSection({ accounts, canConfigure }: { accounts: BankAccount[]; canConfigure: boolean }) {
+  return (
+    <section className="queue" aria-labelledby="comptes">
+      <h2 id="comptes">Comptes bancaires</h2>
+      {accounts.length === 0 ? (
+        <p className="muted">Aucun compte : les étudiants ne peuvent pas encore payer à la banque.</p>
+      ) : (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Banque</th>
+                <th scope="col">Titulaire</th>
+                <th scope="col">Numéro</th>
+                <th scope="col">Devise</th>
+                <th scope="col">État</th>
+                {canConfigure && <th scope="col" />}
+              </tr>
+            </thead>
+            <tbody>
+              {accounts.map((a) => (
+                <tr key={a.id}>
+                  <td>{a.bankName}</td>
+                  <td>{a.accountName}</td>
+                  <td className="hash">{a.accountNumber}</td>
+                  <td>{a.currency}</td>
+                  <td>{a.enabled ? 'Proposé aux étudiants' : 'Retiré'}</td>
+                  {canConfigure && (
+                    <td>
+                      <ActionForm action={toggleBankAccount.bind(null, a.id, !a.enabled)}>
+                        <SubmitButton variant="outline">{a.enabled ? 'Retirer' : 'Réactiver'}</SubmitButton>
+                      </ActionForm>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {canConfigure && (
+        <details className="card">
+          <summary>Ajouter un compte</summary>
+          <ActionForm action={createBankAccount} className="form-grid">
+            <label>
+              Banque
+              <input name="bankName" required maxLength={100} placeholder="Rawbank" className="text-input" />
+            </label>
+            <label>
+              Titulaire du compte
+              <input name="accountName" required maxLength={200} placeholder="Université de …" className="text-input" />
+            </label>
+            <label>
+              Numéro de compte
+              <input name="accountNumber" required maxLength={64} placeholder="05100-0001234-56" className="text-input" />
+            </label>
+            <label>
+              Devise
+              <select name="currency" defaultValue="USD" className="text-input">
+                <option value="USD">Dollar américain (USD)</option>
+                <option value="CDF">Franc congolais (CDF)</option>
+              </select>
+            </label>
+            <SubmitButton>Ajouter le compte</SubmitButton>
+          </ActionForm>
+        </details>
+      )}
     </section>
   );
 }

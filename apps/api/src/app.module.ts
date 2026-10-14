@@ -14,6 +14,11 @@ import { PublicHomepageController } from './content/public-homepage.controller';
 import { DatabaseModule } from './db/database.module';
 import { HealthController } from './health/health.controller';
 import { KEYCLOAK_FETCH, KeycloakAdminService } from './keycloak/keycloak-admin.service';
+import {
+  BankAccountsController,
+  BankPaymentsReviewController,
+  MyBankPaymentsController,
+} from './payments/bank-payments.controller';
 import { MyPaymentsController, PaymentsAdminController, PaymentWebhooksController } from './payments/payments.controller';
 import { PaymentsService } from './payments/payments.service';
 import { PlatformController } from './platform/platform.controller';
@@ -58,6 +63,9 @@ export class AppModule implements NestModule {
         PaymentsAdminController,
         MyPaymentsController,
         PaymentWebhooksController,
+        BankAccountsController,
+        MyBankPaymentsController,
+        BankPaymentsReviewController,
         PlatformController,
       ],
       providers: [

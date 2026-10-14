@@ -53,7 +53,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { key: 'structure', label: 'Facultés et départements', href: '/espace/structure', anyOf: ['academic:structure:write'], upcoming: true },
       { key: 'grade-approval', label: 'Validation des notes', href: '/espace/validation-notes', anyOf: ['grades:approve', 'grades:publish'] },
       { key: 'transcripts', label: 'Relevés officiels', href: '/espace/releves-validation', anyOf: ['transcripts:validate'], universityWide: true },
-      { key: 'finance', label: 'Finances', href: '/espace/finances', anyOf: ['finance:read', 'tenant:config:write'] },
+      { key: 'finance', label: 'Finances', href: '/espace/finances', anyOf: ['finance:read', 'tenant:config:write', 'payments:validate'] },
       { key: 'research', label: 'Recherche', href: '/espace/recherche', anyOf: ['research:labs:manage'], upcoming: true },
       { key: 'audit', label: "Journal d'audit", href: '/espace/audit', anyOf: ['audit:read'], upcoming: true },
     ],

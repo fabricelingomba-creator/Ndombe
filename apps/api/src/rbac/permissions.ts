@@ -29,6 +29,7 @@ export const PERMISSIONS = [
   'staff:manage',
   'fees:structures:write',
   'finance:read',
+  'payments:validate',
   'facilities:manage',
   'reports:operational:read',
   // Recherche (SG-Res)
