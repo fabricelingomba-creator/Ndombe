@@ -39,6 +39,7 @@ export const SYSTEM_ROLES: readonly SystemRole[] = [
       'users:manage',
       'fees:structures:write',
       'finance:read',
+      'payments:validate',
       'facilities:manage',
       'reports:operational:read',
       'announcements:read',

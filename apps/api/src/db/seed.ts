@@ -38,6 +38,16 @@ async function seed() {
     await db.withPlatform(tenantId!, (tx) => seedAcademics(tx, tenantId!));
     await db.withPlatform(tenantId!, async (tx) => {
       await seedFees(tx, tenantId!);
+      const banks = await tx.query('SELECT 1 FROM bank_accounts LIMIT 1');
+      if (!banks.rowCount) {
+        await tx.query(
+          `INSERT INTO bank_accounts (tenant_id, bank_name, account_name, account_number, currency) VALUES
+             ($1, 'Rawbank', 'Université de démonstration', '05100-0001234-56', 'USD'),
+             ($1, 'Equity BCDC', 'Université de démonstration', '00011-0098765-43', 'CDF')`,
+          [tenantId],
+        );
+        console.log('Comptes bancaires de démonstration créés (Rawbank USD, Equity BCDC CDF).');
+      }
       // Mobile Money simulé, si la clé de chiffrement est configurée (jamais en production).
       if (env.PAYMENT_SECRETS_KEY && sandboxPaymentsEnabled(env)) {
         const configured = await tx.query(`SELECT 1 FROM tenant_payment_providers WHERE provider = 'sandbox'`);

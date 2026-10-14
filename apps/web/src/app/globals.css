@@ -158,3 +158,13 @@ details.card summary { cursor: pointer; font-weight: 600; }
 .payment-succeeded, .invoice-paid { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
 .payment-failed, .invoice-cancelled { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
 nav.chips { margin-block: 8px; }
+
+/* Paiement par banque. */
+.bank-pay { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+.bank-pay summary { cursor: pointer; font-weight: 600; color: var(--brand-primary); }
+.accounts { list-style: none; padding: 0; margin: 10px 0; display: grid; gap: 8px; }
+.accounts li { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
+.form-grid label .small { font-weight: 400; }
+.slip-grid { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 8px 0; font-size: .95rem; }
+.slip-grid dt { color: var(--muted); }
+.slip-grid dd { margin: 0; }

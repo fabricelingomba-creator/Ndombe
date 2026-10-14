@@ -24,7 +24,7 @@ ce dépôt en reprend les décisions dans [docs/architecture.md](docs/architectu
 | Portail web à la marque (Next.js) : accueil, connexion, espace | `apps/web` |
 | Cours, inscriptions, notes et circuit de validation | `apps/api/src/academic`, `apps/web/src/app/espace` |
 | Relevés officiels en PDF, vérifiables par code | `apps/api/src/transcripts`, `apps/web/src/app/verifier` |
-| Frais, factures et paiements Mobile Money, webhooks signés | `apps/api/src/payments`, `apps/web/src/app/espace/paiements` |
+| Frais, factures, paiements Mobile Money et par banque (bordereau validé par la finance) | `apps/api/src/payments`, `apps/web/src/app/espace/paiements` |
 
 ## Démarrer en local
 
@@ -74,7 +74,9 @@ la première connexion (e-mail vérifié).
 Si `PAYMENT_SECRETS_KEY` est renseignée, le seed facture aussi deux frais aux
 étudiants (minerval en dollars, bibliothèque en francs congolais) et active le
 Mobile Money simulé : sur `/espace/paiements`, l'étudiant paie avec un numéro
-fictif puis simule la validation sur son téléphone. Aucun argent ne circule ;
+fictif puis simule la validation sur son téléphone. Il peut aussi payer à la
+banque (deux comptes de démonstration) et téléverser son bordereau, que le
+Recteur valide ou refuse sur `/espace/finances`. Aucun argent ne circule ;
 ce prestataire est refusé au démarrage en production.
 
 Obtenir un jeton et appeler l'API :

@@ -141,7 +141,7 @@ export interface TranscriptVerification {
 
 export type InvoiceStatus = 'open' | 'paid' | 'cancelled';
 export type PaymentStatus = 'pending' | 'succeeded' | 'failed';
-export type PaymentProviderKey = 'sandbox';
+export type PaymentProviderKey = 'sandbox' | 'bank';
 
 export interface Payment {
   id: string;
@@ -154,6 +154,9 @@ export interface Payment {
   failureReason: string | null;
   createdAt: string;
   completedAt: string | null;
+  /** Paiement par banque : numéro du bordereau et banque. */
+  slipReference?: string | null;
+  bankName?: string | null;
 }
 
 export interface Invoice {
@@ -198,4 +201,34 @@ export interface PaymentProviderConfig {
   enabled: boolean;
   updatedAt: string;
   webhookUrl: string;
+}
+
+export interface BankAccount {
+  id: string;
+  bankName: string;
+  accountName: string;
+  accountNumber: string;
+  currency: string;
+  enabled?: boolean;
+}
+
+export interface BankSlipReview {
+  id: string;
+  amountMinor: number;
+  currency: string;
+  status: PaymentStatus;
+  failureReason: string | null;
+  reference: string;
+  paidOn: string;
+  fileType: string;
+  decision: 'accepted' | 'rejected' | null;
+  submittedAt: string;
+  reviewedAt: string | null;
+  bankName: string;
+  accountNumber: string;
+  studentName: string;
+  studentEmail: string;
+  feeName: string;
+  invoiceAmountMinor: number;
+  reviewerName: string | null;
 }

@@ -141,3 +141,24 @@ différents du paiement : rien n'est réglé). Un webhook arrivé avant
 l'enregistrement de la référence est rattaché par l'identifiant Elongo que
 l'agrégateur renvoie. Un paiement abouti ou échoué est figé par trigger ; la
 facture passe à `paid` quand les paiements aboutis couvrent son montant.
+
+### Paiement par banque
+
+L'étudiant dépose les frais sur un compte de l'université (`bank_accounts`, un
+par banque et par devise) puis téléverse son bordereau depuis l'espace étudiant
+(`POST /v1/me/invoices/:id/bank-payments`, multipart, `Idempotency-Key`). Le
+paiement (`provider = 'bank'`) reste en attente jusqu'à la décision d'une personne
+détenant `payments:validate` (Recteur, SG administratif) : validé, il règle la
+facture ; refusé, son motif est montré à l'étudiant, qui peut renvoyer un
+bordereau. La décision est définitive (trigger) et personne ne traite son propre
+bordereau.
+
+Contrôles : fichier PDF, JPEG ou PNG reconnu par son contenu (5 Mo au plus),
+date de dépôt plausible, devise du compte égale à celle de la facture, montant
+au plus égal au reste à payer. Un même numéro de bordereau sur un même compte,
+ou un même fichier (SHA-256), ne sert qu'une fois, sauf s'il a été refusé. Un
+bordereau en attente bloque tout autre paiement de la facture.
+
+Le fichier est stocké en base (`bytea`, sous RLS) en attendant un stockage objet.
+Il n'est servi qu'aux valideurs : une image s'affiche dans un bac à sable
+(`Content-Security-Policy: sandbox`), un PDF est téléchargé.

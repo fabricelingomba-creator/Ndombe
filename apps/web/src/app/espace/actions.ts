@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import type { ActionResult } from '@/components/action-form';
-import { apiSend, getPaymentOptions } from '@/lib/api';
+import { apiSend, apiSendForm, getPaymentOptions } from '@/lib/api';
 import { parseScore, UUID } from '@/lib/grades';
 import { normalizePhone, parseAmount } from '@/lib/payments';
 import { portalRequest } from '@/lib/request';
@@ -214,4 +214,87 @@ export async function configurePaymentProvider(
   if (!res.ok) return { ok: false, message: res.status === 404 ? 'Ce moyen de paiement n’est pas disponible sur cette plateforme.' : res.message };
   revalidatePath('/espace/finances');
   return { ok: true, message: 'Mobile Money simulé activé.' };
+}
+
+const SLIP_MAX_BYTES = 5 * 1024 * 1024;
+const SLIP_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
+
+/**
+ * Paiement par banque : l'étudiant déclare son dépôt et téléverse le
+ * bordereau. L'API vérifie le fichier (contenu réel, taille, doublons).
+ */
+export async function declareBankPayment(invoiceId: string, _prev: ActionResult, form: FormData): Promise<ActionResult> {
+  if (!UUID.test(invoiceId)) return { ok: false, message: 'Facture invalide.' };
+  const idempotencyKey = String(form.get('idempotencyKey') ?? '');
+  if (!IDEMPOTENCY_KEY.test(idempotencyKey)) return { ok: false, message: 'Formulaire expiré : rechargez la page.' };
+  const slip = form.get('slip');
+  if (!(slip instanceof File) || slip.size === 0) return { ok: false, message: 'Joignez la photo ou le PDF du bordereau.' };
+  if (slip.size > SLIP_MAX_BYTES) return { ok: false, message: 'Fichier trop lourd (5 Mo au plus).' };
+  if (slip.type && !SLIP_TYPES.includes(slip.type)) return { ok: false, message: 'Envoyez une photo (JPEG, PNG) ou un PDF.' };
+  const amount = parseAmount(String(form.get('amount') ?? ''));
+  if (amount === undefined) return { ok: false, message: 'Montant invalide.' };
+  const s = await session();
+  if (!s) return EXPIRED;
+
+  const body = new FormData();
+  body.set('bankAccountId', String(form.get('bankAccountId') ?? ''));
+  body.set('reference', String(form.get('reference') ?? '').trim());
+  body.set('paidOn', String(form.get('paidOn') ?? ''));
+  body.set('amount', String(amount));
+  body.set('slip', slip, slip.name || 'bordereau');
+  const res = await apiSendForm(s.host, `/v1/me/invoices/${invoiceId}/bank-payments`, s.token, body, {
+    'idempotency-key': idempotencyKey,
+  });
+  if (!res.ok) return { ok: false, message: res.message };
+  revalidatePath('/espace/paiements');
+  return { ok: true, message: 'Bordereau envoyé. Le service financier va le vérifier.' };
+}
+
+export async function reviewBankSlip(
+  paymentId: string,
+  decision: 'accept' | 'reject',
+  _prev: ActionResult,
+  form: FormData,
+): Promise<ActionResult> {
+  // Les arguments liés transitent par le navigateur : on les revalide ici.
+  if (!UUID.test(paymentId) || !['accept', 'reject'].includes(decision)) return { ok: false, message: 'Action invalide.' };
+  const s = await session();
+  if (!s) return EXPIRED;
+  const reason = String(form.get('reason') ?? '').trim();
+  if (decision === 'reject' && reason.length < 3) return { ok: false, message: 'Indiquez le motif du refus.' };
+  const res = await apiSend<{ invoiceStatus: string }>(
+    s.host,
+    `/v1/bank-payments/${paymentId}/${decision}`,
+    s.token,
+    'POST',
+    decision === 'reject' ? { reason } : undefined,
+  );
+  if (!res.ok) return { ok: false, message: res.message };
+  revalidatePath('/espace/finances');
+  if (decision === 'reject') return { ok: true, message: 'Bordereau refusé.' };
+  return { ok: true, message: res.data.invoiceStatus === 'paid' ? 'Paiement validé, facture réglée.' : 'Paiement validé.' };
+}
+
+export async function createBankAccount(_prev: ActionResult, form: FormData): Promise<ActionResult> {
+  const s = await session();
+  if (!s) return EXPIRED;
+  const res = await apiSend(s.host, '/v1/bank-accounts', s.token, 'POST', {
+    bankName: String(form.get('bankName') ?? '').trim(),
+    accountName: String(form.get('accountName') ?? '').trim(),
+    accountNumber: String(form.get('accountNumber') ?? '').trim(),
+    currency: String(form.get('currency') ?? ''),
+  });
+  if (!res.ok) return { ok: false, message: res.status === 409 ? 'Ce compte existe déjà.' : res.message };
+  revalidatePath('/espace/finances');
+  return { ok: true, message: 'Compte ajouté : les étudiants peuvent y déposer leurs frais.' };
+}
+
+export async function toggleBankAccount(accountId: string, enabled: boolean, _prev: ActionResult, _form: FormData): Promise<ActionResult> {
+  if (!UUID.test(accountId) || typeof enabled !== 'boolean') return { ok: false, message: 'Action invalide.' };
+  const s = await session();
+  if (!s) return EXPIRED;
+  const res = await apiSend(s.host, `/v1/bank-accounts/${accountId}`, s.token, 'PUT', { enabled });
+  if (!res.ok) return { ok: false, message: res.message };
+  revalidatePath('/espace/finances');
+  return { ok: true, message: enabled ? 'Compte réactivé.' : 'Compte retiré des choix proposés aux étudiants.' };
 }
