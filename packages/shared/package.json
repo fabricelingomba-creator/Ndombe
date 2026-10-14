@@ -1,0 +1,19 @@
+{
+  "name": "@elongo/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Types et règles métier partagés par le portail web et l'application mobile (TypeScript pur, sans dépendance).",
+  "type": "module",
+  "exports": {
+    "./types": "./src/types.ts",
+    "./payments": "./src/payments.ts",
+    "./grades": "./src/grades.ts",
+    "./navigation": "./src/navigation.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "~5.6.3"
+  }
+}

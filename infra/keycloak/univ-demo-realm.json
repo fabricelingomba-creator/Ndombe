@@ -11,6 +11,16 @@
       "standardFlowEnabled": true,
       "redirectUris": ["http://demo.elongo.localhost:*", "http://localhost:*"],
       "webOrigins": ["+"]
+    },
+    {
+      "clientId": "elongo-mobile",
+      "name": "Application mobile",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["elongo://auth/callback", "exp://*", "http://localhost:8081/*"],
+      "webOrigins": ["http://localhost:8081"],
+      "attributes": { "pkce.code.challenge.method": "S256" }
     }
   ],
   "users": [
