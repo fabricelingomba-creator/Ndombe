@@ -7,6 +7,8 @@ import { useResource } from '@/session/use-resource';
 import { Body, Button, Card, Heading, Notice, Row, Screen, Title } from '@/ui/components';
 import { useTheme } from '@/ui/theme';
 
+type Channel = 'email' | 'push';
+
 /** Pastille blanche sur la couleur de l'université (activeThumbColor : version web). */
 const switchColors = (on: string, off: string) =>
   ({ trackColor: { true: on, false: off }, thumbColor: '#FFFFFF', activeThumbColor: '#FFFFFF' }) as object;
@@ -15,29 +17,47 @@ const switchColors = (on: string, off: string) =>
 export default function Profile() {
   const { me, tenant, biometrics, setBiometricsEnabled, signOut, forgetTenant, api } = useSession();
   const prefs = useResource<NotificationPreference[]>('notification-preferences', '/v1/me/notification-preferences');
-  const [email, setEmail] = useState<Record<string, boolean>>({});
+  const [choices, setChoices] = useState<Record<string, boolean>>({});
   const [result, setResult] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const t = useTheme();
 
   useEffect(() => {
-    if (prefs.data) setEmail(Object.fromEntries(prefs.data.map((p) => [p.category, p.email])));
+    if (prefs.data) setChoices(Object.fromEntries(prefs.data.flatMap((p) => [[`email:${p.category}`, p.email], [`push:${p.category}`, p.push]])));
   }, [prefs.data]);
 
-  const toggle = async (category: NotificationCategory, value: boolean) => {
-    const next = { ...email, [category]: value };
-    setEmail(next);
+  const toggle = async (channel: Channel, category: NotificationCategory, value: boolean) => {
+    const before = choices;
+    setChoices({ ...choices, [`${channel}:${category}`]: value });
     setSaving(true);
     setResult(null);
     try {
-      await api!.put('/v1/me/notification-preferences', { email: { [category]: value } });
+      await api!.put('/v1/me/notification-preferences', { [channel]: { [category]: value } });
     } catch (err) {
-      setEmail(email);
+      setChoices(before);
       setResult({ kind: 'error', message: (err as Error).message });
     } finally {
       setSaving(false);
     }
   };
+
+  const preferences = (channel: Channel) => (
+    <Card>
+      {prefs.data?.map((p) => (
+        <Row key={p.category}>
+          <Text style={{ color: t.ink, fontSize: 15, flexShrink: 1 }}>{p.label}</Text>
+          <Switch
+            accessibilityLabel={`${channel === 'push' ? 'Sur ce téléphone' : 'E-mails'} : ${p.label}`}
+            value={choices[`${channel}:${p.category}`] ?? p[channel]}
+            disabled={saving || prefs.offlineSince !== null}
+            onValueChange={(v) => void toggle(channel, p.category, v)}
+            {...switchColors(t.primary, t.line)}
+          />
+        </Row>
+      ))}
+      {prefs.error && !prefs.data && <Notice kind="error">{prefs.error}</Notice>}
+    </Card>
+  );
 
   const confirm = (title: string, message: string, action: () => Promise<void>) => {
     if (Platform.OS === 'web') {
@@ -73,23 +93,17 @@ export default function Profile() {
         </Card>
       )}
 
+      {Platform.OS !== 'web' && (
+        <>
+          <Heading>Sur ce téléphone</Heading>
+          <Body muted>Notifications affichées même quand l’app est fermée.</Body>
+          {preferences('push')}
+        </>
+      )}
+
       <Heading>Recevoir aussi par e-mail</Heading>
       <Body muted>Les notifications restent toujours visibles dans l’app ; ces choix ne concernent que les e-mails.</Body>
-      <Card>
-        {prefs.data?.map((p) => (
-          <Row key={p.category}>
-            <Text style={{ color: t.ink, fontSize: 15, flexShrink: 1 }}>{p.label}</Text>
-            <Switch
-              accessibilityLabel={`E-mails : ${p.label}`}
-              value={email[p.category] ?? p.email}
-              disabled={saving || prefs.offlineSince !== null}
-              onValueChange={(v) => void toggle(p.category, v)}
-              {...switchColors(t.primary, t.line)}
-            />
-          </Row>
-        ))}
-        {prefs.error && !prefs.data && <Notice kind="error">{prefs.error}</Notice>}
-      </Card>
+      {preferences('email')}
       {result && <Notice kind={result.kind}>{result.message}</Notice>}
 
       <Button title="Ouvrir le portail web" variant="outline" onPress={() => void WebBrowser.openBrowserAsync(`${tenant?.portalUrl}/espace`)} />

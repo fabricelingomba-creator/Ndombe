@@ -7,6 +7,7 @@ import { biometricsAvailable, confirmIdentity } from '@/lib/biometrics';
 import { API_URL, LOCK_AFTER_MS } from '@/lib/config';
 import { enqueue, flushOutbox, isNetworkFailure, QueuedAction, readThrough } from '@/lib/offline';
 import * as oidc from '@/lib/oidc';
+import { registerForPush } from '@/lib/push';
 import { secure } from '@/lib/secure';
 import { shouldLock, singleFlight } from '@/lib/single-flight';
 import { store } from '@/lib/store';
@@ -46,7 +47,7 @@ interface SessionValue {
 
 const SessionContext = createContext<SessionValue | null>(null);
 
-const KEYS = { tenant: 'tenant', refresh: 'refresh_token', biometrics: 'biometrics' } as const;
+const KEYS = { tenant: 'tenant', refresh: 'refresh_token', biometrics: 'biometrics', push: 'push_token' } as const;
 
 function tenantFrom(manifest: Manifest): Tenant {
   return {
@@ -213,6 +214,21 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     if (status === 'ready') void flush();
   }, [status, flush]);
 
+  // Connecté : ce téléphone reçoit les notifications push du compte (si l'utilisateur l'autorise).
+  const pushRegistered = useRef(false);
+  useEffect(() => {
+    if (status !== 'ready' || !api || pushRegistered.current) return;
+    pushRegistered.current = true;
+    (async () => {
+      const device = await registerForPush();
+      if (!device) return;
+      await api.post('/v1/me/push-devices', device);
+      await secure.set(KEYS.push, device.token);
+    })().catch(() => {
+      pushRegistered.current = false;
+    });
+  }, [status, api]);
+
   const value: SessionValue = {
     status,
     tenant,
@@ -270,6 +286,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     async signOut() {
       const t = tenantRef.current;
+      const pushToken = await secure.get(KEYS.push);
+      // D'abord désinscrire le téléphone, tant que la session est valide.
+      if (pushToken && api) await api.post('/v1/me/push-devices/unregister', { token: pushToken }).catch(() => undefined);
+      await secure.delete(KEYS.push);
+      pushRegistered.current = false;
       const refreshToken = await secure.get(KEYS.refresh);
       if (t && refreshToken) await oidc.revoke(t.issuer, refreshToken);
       await clearLocal();

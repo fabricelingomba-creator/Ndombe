@@ -189,8 +189,7 @@ enregistrée. Les textes sont construits dans `notifications/catalog.ts`.
   coupe les e-mails ; la notification reste dans l'application. Les e-mails déjà
   en file pour une catégorie coupée ne partent plus.
 
-SMS et notifications push (app mobile) se brancheront comme d'autres canaux de
-`notification_deliveries`. Les SMS demandent un agrégateur, comme le Mobile Money.
+Les SMS se brancheront comme un autre canal de `notification_deliveries` ; ils demandent un agrégateur, comme le Mobile Money.
 
 
 ## Application mobile
@@ -221,6 +220,18 @@ le même code que le portail web.
   bordereau part en multipart vers le même point d'entrée que le portail, qui
   vérifie le contenu réel du fichier, sa taille et les doublons.
 
-Prochaine étape : notifications push, comme nouveau canal de
-`notification_deliveries` (enregistrement de l'appareil, puis envoi par
-Expo Push / FCM / APNs).
+### Notifications push
+
+- **Téléphones** : à la connexion, l'app demande l'autorisation et envoie son
+  jeton Expo Push (`POST /v1/me/push-devices`) ; table `push_devices` sous RLS,
+  dix téléphones au plus par compte, un téléphone qui change de compte passe au
+  nouveau. La déconnexion le désinscrit (`POST /v1/me/push-devices/unregister`).
+- **Envoi** : canal `push` de `notification_deliveries`, écrit dans la même
+  transaction que la notification si le destinataire a un téléphone et n'a pas
+  coupé la catégorie. La boucle d'envoi lit les téléphones au moment de
+  l'envoi, appelle Expo Push (réessais comme l'e-mail) et supprime un téléphone
+  où l'app est désinstallée (`DeviceNotRegistered`).
+- **Contenu** : titre et début du texte (affichés sur l'écran verrouillé),
+  plus l'identifiant de la notification, son lien interne et le code de
+  l'université. L'app ignore une notification d'une autre université, marque
+  la notification lue et ouvre l'écran lié.

@@ -4,6 +4,7 @@ import { DatabaseService, Tx } from '../db/database.service';
 import { messages } from './catalog';
 import { EMAIL_TRANSPORT, EmailTransport, headerSafe, renderEmail } from './email';
 import { NotificationsService } from './notifications.service';
+import { PUSH_TRANSPORT, PushTransport } from './push';
 
 /** Délais avant chaque nouvel essai d'envoi ; au-delà, l'envoi est abandonné. */
 export const RETRY_DELAYS_MINUTES = [1, 5, 30, 120] as const;
@@ -25,6 +26,19 @@ interface ClaimedDelivery {
   link: string | null;
 }
 
+interface ClaimedPush {
+  id: string;
+  attempts: number;
+  notification_id: string;
+  user_id: string;
+  title: string;
+  body: string;
+  link: string | null;
+}
+
+/** Au-delà, les plus anciens téléphones d'un compte ne sont plus servis. */
+const MAX_DEVICES_PER_USER = 10;
+
 interface TenantRow {
   id: string;
   slug: string;
@@ -37,7 +51,7 @@ export function retryDelayMinutes(attempts: number): number | null {
 }
 
 /**
- * Boucle d'arrière-plan : envoie les e-mails en attente et produit les
+ * Boucle d'arrière-plan : envoie les e-mails et notifications push en attente et produit les
  * notifications planifiées (rappels de factures, annonces programmées).
  * Plusieurs instances de l'API peuvent tourner : chaque envoi est réservé
  * (FOR UPDATE SKIP LOCKED) avant l'appel réseau, fait hors transaction.
@@ -53,6 +67,7 @@ export class NotificationDispatcher implements OnApplicationBootstrap, OnModuleD
     private readonly db: DatabaseService,
     private readonly notifications: NotificationsService,
     @Inject(EMAIL_TRANSPORT) private readonly transport: EmailTransport | null,
+    @Inject(PUSH_TRANSPORT) private readonly push: PushTransport | null,
     @Inject(ENV) private readonly env: Env,
   ) {}
 
@@ -101,20 +116,116 @@ export class NotificationDispatcher implements OnApplicationBootstrap, OnModuleD
       }
     }
     const total = { sent: 0, failed: 0 };
-    if (!this.transport) return total;
     for (const tenant of tenants) {
-      try {
-        const result = await this.deliver(tenant);
-        total.sent += result.sent;
-        total.failed += result.failed;
-      } catch (err) {
-        this.logger.error(`Envoi des notifications de ${tenant.id} : ${(err as Error).message}`);
+      for (const [channel, deliver] of [
+        ['e-mail', this.transport ? () => this.deliverEmail(tenant) : null],
+        ['push', this.push ? () => this.deliverPush(tenant) : null],
+      ] as const) {
+        if (!deliver) continue;
+        try {
+          const result = await deliver();
+          total.sent += result.sent;
+          total.failed += result.failed;
+        } catch (err) {
+          this.logger.error(`Envoi ${channel} des notifications de ${tenant.id} : ${(err as Error).message}`);
+        }
       }
     }
     return total;
   }
 
-  private async deliver(tenant: TenantRow) {
+  /** Envoi réussi ; ou nouvel essai plus tard, et abandon après le dernier (renvoie true si abandonné). */
+  private async conclude(tenantId: string, id: string, attempts: number, error: string | null): Promise<boolean> {
+    if (error === null) {
+      await this.db.withTenant(tenantId, (tx) =>
+        tx.query(`UPDATE notification_deliveries SET status = 'sent', sent_at = now(), last_error = NULL WHERE id = $1`, [id]),
+      );
+      return false;
+    }
+    const delay = retryDelayMinutes(attempts);
+    const message = error.slice(0, 500);
+    await this.db.withTenant(tenantId, (tx) =>
+      tx.query(
+        `UPDATE notification_deliveries
+            SET status = CASE WHEN $2::int IS NULL THEN 'failed' ELSE 'pending' END,
+                next_attempt_at = now() + make_interval(mins => COALESCE($2::int, 0)), last_error = $3
+          WHERE id = $1`,
+        [id, delay, message],
+      ),
+    );
+    if (delay === null) this.logger.warn(`Notification abandonnée après ${attempts} essais (envoi ${id}) : ${message}`);
+    return delay === null;
+  }
+
+  /** Échec définitif sans nouvel essai (plus aucun téléphone à joindre). */
+  private async drop(tenantId: string, id: string, reason: string) {
+    await this.db.withTenant(tenantId, (tx) =>
+      tx.query(`UPDATE notification_deliveries SET status = 'failed', last_error = $2 WHERE id = $1`, [id, reason]),
+    );
+  }
+
+  private async deliverPush(tenant: TenantRow) {
+    const transport = this.push!;
+    const claimed = await this.db.withTenant(tenant.id, async (tx) =>
+      (
+        await tx.query<ClaimedPush>(
+          `UPDATE notification_deliveries d
+              SET attempts = d.attempts + 1, next_attempt_at = now() + make_interval(mins => $1)
+             FROM notifications n
+            WHERE n.id = d.notification_id
+              AND d.id IN (SELECT id FROM notification_deliveries
+                            WHERE status = 'pending' AND channel = 'push' AND next_attempt_at <= now()
+                            ORDER BY next_attempt_at LIMIT $2 FOR UPDATE SKIP LOCKED)
+            RETURNING d.id, d.attempts, n.id AS notification_id, n.user_id, n.title, n.body, n.link`,
+          [LEASE_MINUTES, BATCH_SIZE],
+        )
+      ).rows,
+    );
+
+    const result = { sent: 0, failed: 0 };
+    for (const d of claimed) {
+      const tokens = await this.db.withTenant(tenant.id, async (tx) =>
+        (
+          await tx.query<{ token: string }>(
+            'SELECT token FROM push_devices WHERE user_id = $1 ORDER BY last_seen_at DESC LIMIT $2',
+            [d.user_id, MAX_DEVICES_PER_USER],
+          )
+        ).rows.map((r) => r.token),
+      );
+      if (tokens.length === 0) {
+        await this.drop(tenant.id, d.id, 'Aucun téléphone enregistré');
+        continue;
+      }
+      let error: string | null;
+      try {
+        const tickets = await transport.send({
+          to: tokens,
+          title: d.title,
+          body: d.body,
+          // L'app ouvre l'écran lié et marque la notification lue ; jamais de donnée au-delà.
+          data: { notificationId: d.notification_id, link: d.link, tenant: tenant.slug },
+        });
+        const gone = tickets.filter((t) => t.unregistered).map((t) => t.token);
+        if (gone.length) {
+          await this.db.withTenant(tenant.id, (tx) =>
+            tx.query('DELETE FROM push_devices WHERE token = ANY($1::text[])', [gone]),
+          );
+        }
+        if (tickets.some((t) => t.ok)) error = null;
+        else if (gone.length === tickets.length) {
+          await this.drop(tenant.id, d.id, 'Application désinstallée de tous les téléphones');
+          continue;
+        } else error = tickets.find((t) => !t.ok && !t.unregistered)?.error ?? 'Envoi refusé';
+      } catch (err) {
+        error = (err as Error).message ?? 'Erreur inconnue';
+      }
+      if (await this.conclude(tenant.id, d.id, d.attempts, error)) result.failed++;
+      else if (error === null) result.sent++;
+    }
+    return result;
+  }
+
+  private async deliverEmail(tenant: TenantRow) {
     const transport = this.transport!;
     const { claimed, color } = await this.db.withTenant(tenant.id, async (tx) => {
       const claimed = (
@@ -145,29 +256,14 @@ export class NotificationDispatcher implements OnApplicationBootstrap, OnModuleD
         url: d.link ? `${portal}${d.link}` : null,
         preferencesUrl: `${portal}/espace/notifications`,
       });
+      let error: string | null = null;
       try {
         await transport.send({ from: { name: headerSafe(tenant.name), address: emailFrom(this.env) }, to: d.recipient, ...content });
-        await this.db.withTenant(tenant.id, (tx) =>
-          tx.query(`UPDATE notification_deliveries SET status = 'sent', sent_at = now(), last_error = NULL WHERE id = $1`, [d.id]),
-        );
-        result.sent++;
       } catch (err) {
-        const delay = retryDelayMinutes(d.attempts);
-        const message = ((err as Error).message ?? 'Erreur inconnue').slice(0, 500);
-        await this.db.withTenant(tenant.id, (tx) =>
-          tx.query(
-            `UPDATE notification_deliveries
-                SET status = CASE WHEN $2::int IS NULL THEN 'failed' ELSE 'pending' END,
-                    next_attempt_at = now() + make_interval(mins => COALESCE($2::int, 0)), last_error = $3
-              WHERE id = $1`,
-            [d.id, delay, message],
-          ),
-        );
-        if (delay === null) {
-          result.failed++;
-          this.logger.warn(`E-mail abandonné après ${d.attempts} essais (envoi ${d.id}) : ${message}`);
-        }
+        error = (err as Error).message ?? 'Erreur inconnue';
       }
+      if (await this.conclude(tenant.id, d.id, d.attempts, error)) result.failed++;
+      else if (error === null) result.sent++;
     }
     return result;
   }

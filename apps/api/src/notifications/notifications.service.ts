@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { ENV, Env, emailTransport } from '../config/env';
+import { ENV, Env, emailTransport, pushTransport } from '../config/env';
 import type { Tx } from '../db/database.service';
 import { RbacService } from '../rbac/rbac.service';
 import { Scope, UNIVERSITY_SCOPE } from '../rbac/scope';
@@ -8,17 +8,19 @@ import type { NotificationMessage } from './catalog';
 /**
  * Point d'entrée unique pour notifier. À appeler dans la transaction de
  * l'événement : la notification n'existe que si l'action est enregistrée, et
- * l'e-mail part ensuite, hors transaction, via la file notification_deliveries.
+ * l'e-mail et le push partent ensuite, hors transaction, via la file notification_deliveries.
  */
 @Injectable()
 export class NotificationsService {
   private readonly emailEnabled: boolean;
+  private readonly pushEnabled: boolean;
 
   constructor(
     @Inject(ENV) env: Env,
     private readonly rbac: RbacService,
   ) {
     this.emailEnabled = emailTransport(env) !== 'none';
+    this.pushEnabled = pushTransport(env) !== 'none';
   }
 
   /** Crée la notification pour chaque destinataire (sauf doublon de dedupKey) ; renvoie le nombre créé. */
@@ -42,6 +44,19 @@ export class NotificationsService {
           WHERE n.id = ANY($1::uuid[])
             AND NOT EXISTS (SELECT 1 FROM notification_preferences p
                              WHERE p.user_id = n.user_id AND p.category = n.category AND p.channel = 'email' AND NOT p.enabled)`,
+        [created.rows.map((r) => r.id)],
+      );
+    }
+    if (created.rowCount && this.pushEnabled) {
+      // Un envoi par notification ; les téléphones du destinataire sont lus au moment de l'envoi.
+      await tx.query(
+        `INSERT INTO notification_deliveries (tenant_id, notification_id, channel, recipient)
+         SELECT n.tenant_id, n.id, 'push', n.user_id::text
+           FROM notifications n
+          WHERE n.id = ANY($1::uuid[])
+            AND EXISTS (SELECT 1 FROM push_devices d WHERE d.user_id = n.user_id)
+            AND NOT EXISTS (SELECT 1 FROM notification_preferences p
+                             WHERE p.user_id = n.user_id AND p.category = n.category AND p.channel = 'push' AND NOT p.enabled)`,
         [created.rows.map((r) => r.id)],
       );
     }
