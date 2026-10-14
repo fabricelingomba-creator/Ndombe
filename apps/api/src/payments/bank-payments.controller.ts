@@ -31,6 +31,8 @@ import { ZodPipe } from '../common/zod.pipe';
 import { DatabaseService } from '../db/database.service';
 import { CurrentTenant } from '../tenancy/current-tenant.decorator';
 import { Tenant } from '../tenancy/tenant';
+import { messages } from '../notifications/catalog';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CURRENCIES, toMinor } from './money';
 import { PAYMENT_COLUMNS, PaymentsService } from './payments.service';
 import { detectSlipType, isPlausibleDepositDate, SLIP_EXTENSIONS, SLIP_MAX_BYTES, SlipType } from './slip-file';
@@ -147,6 +149,7 @@ export class MyBankPaymentsController {
   constructor(
     private readonly db: DatabaseService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   @Get('bank-accounts')
@@ -251,6 +254,14 @@ export class MyBankPaymentsController {
           after: { invoiceId, bankAccountId: body.bankAccountId, reference, paidOn: body.paidOn, amountMinor, fileSha256: sha256 },
           ip: req.ip,
         });
+        const bank = (await tx.query<{ bank_name: string }>('SELECT bank_name FROM bank_accounts WHERE id = $1', [body.bankAccountId]))
+          .rows[0];
+        await this.notifications.notify(
+          tx,
+          tenant.id,
+          await this.notifications.holders(tx, 'payments:validate', undefined, [user.id]),
+          messages.bankSlipToReview(user.fullName, amountMinor, invoice.currency, bank.bank_name),
+        );
         return { ...payment, replayed: false };
       });
     } catch (err) {
@@ -271,6 +282,7 @@ export class BankPaymentsReviewController {
     private readonly db: DatabaseService,
     private readonly audit: AuditService,
     private readonly payments: PaymentsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   @Get()
@@ -366,8 +378,16 @@ export class BankPaymentsReviewController {
   ) {
     return this.db.withTenant(tenant.id, async (tx) => {
       const row = (
-        await tx.query<{ decision: string | null; status: string; student_user_id: string; invoice_id: string; amount_minor: string; reference: string }>(
-          `SELECT s.decision, p.status, p.student_user_id, p.invoice_id, p.amount_minor, s.reference
+        await tx.query<{
+          decision: string | null;
+          status: string;
+          student_user_id: string;
+          invoice_id: string;
+          amount_minor: string;
+          currency: string;
+          reference: string;
+        }>(
+          `SELECT s.decision, p.status, p.student_user_id, p.invoice_id, p.amount_minor, p.currency, s.reference
              FROM bank_slips s JOIN payments p ON p.id = s.payment_id
             WHERE s.payment_id = $1
             FOR UPDATE OF s, p`,
@@ -403,6 +423,14 @@ export class BankPaymentsReviewController {
       });
       const invoice = (await tx.query<{ status: string }>('SELECT status FROM invoices WHERE id = $1', [row.invoice_id]))
         .rows[0];
+      await this.notifications.notify(
+        tx,
+        tenant.id,
+        [row.student_user_id],
+        decision === 'accepted'
+          ? messages.bankSlipAccepted(row.amount_minor, row.currency, invoice.status === 'paid')
+          : messages.bankSlipRejected(row.amount_minor, row.currency, reason!),
+      );
       return { decision, invoiceStatus: invoice.status };
     });
   }

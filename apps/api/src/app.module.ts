@@ -8,7 +8,7 @@ import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { MeController } from './auth/me.controller';
 import { BrandingController } from './branding/branding.controller';
-import { ENV, Env } from './config/env';
+import { ENV, Env, emailTransport } from './config/env';
 import { AnnouncementsController } from './content/announcements.controller';
 import { PublicHomepageController } from './content/public-homepage.controller';
 import { DatabaseModule } from './db/database.module';
@@ -19,6 +19,10 @@ import {
   BankPaymentsReviewController,
   MyBankPaymentsController,
 } from './payments/bank-payments.controller';
+import { EMAIL_TRANSPORT, LogEmailTransport, SmtpEmailTransport } from './notifications/email';
+import { NotificationDispatcher } from './notifications/notification-dispatcher';
+import { MyNotificationsController } from './notifications/notifications.controller';
+import { NotificationsService } from './notifications/notifications.service';
 import { MyPaymentsController, PaymentsAdminController, PaymentWebhooksController } from './payments/payments.controller';
 import { PaymentsService } from './payments/payments.service';
 import { PlatformController } from './platform/platform.controller';
@@ -66,12 +70,23 @@ export class AppModule implements NestModule {
         BankAccountsController,
         MyBankPaymentsController,
         BankPaymentsReviewController,
+        MyNotificationsController,
         PlatformController,
       ],
       providers: [
         TenantProvisioningService,
         KeycloakAdminService,
         PaymentsService,
+        NotificationsService,
+        NotificationDispatcher,
+        {
+          provide: EMAIL_TRANSPORT,
+          useFactory: () => {
+            const kind = emailTransport(env);
+            if (kind === 'smtp') return new SmtpEmailTransport(env.SMTP_URL!);
+            return kind === 'log' ? new LogEmailTransport() : null;
+          },
+        },
         { provide: KEYCLOAK_FETCH, useValue: ((...args) => fetch(...args)) satisfies typeof fetch },
       ],
     };

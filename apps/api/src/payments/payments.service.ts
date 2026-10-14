@@ -11,6 +11,8 @@ import {
 import { AuditService } from '../audit/audit.service';
 import { ENV, Env, sandboxPaymentsEnabled } from '../config/env';
 import { DatabaseService, Tx } from '../db/database.service';
+import { messages } from '../notifications/catalog';
+import { NotificationsService } from '../notifications/notifications.service';
 import { Tenant } from '../tenancy/tenant';
 import type { Currency } from './money';
 import { PaymentProvider, ProviderEvent, ProviderKey } from './providers/provider';
@@ -46,6 +48,7 @@ export class PaymentsService {
   constructor(
     private readonly db: DatabaseService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
     @Inject(ENV) private readonly env: Env,
   ) {
     this.key = env.PAYMENT_SECRETS_KEY ? Buffer.from(env.PAYMENT_SECRETS_KEY, 'base64') : null;
@@ -287,6 +290,19 @@ export class PaymentsService {
       entityId: payment.id,
       after: { provider: key, eventId: event.eventId, amountMinor: payment.amountMinor, currency: payment.currency },
     });
+    const invoice = (
+      await tx.query<{ status: string; student_user_id: string }>('SELECT status, student_user_id FROM invoices WHERE id = $1', [
+        payment.invoiceId,
+      ])
+    ).rows[0];
+    await this.notifications.notify(
+      tx,
+      tenantId,
+      [invoice.student_user_id],
+      event.outcome === 'failed'
+        ? messages.paymentFailed(payment.amountMinor, payment.currency, event.failureReason ?? 'Paiement refusé')
+        : messages.paymentSucceeded(payment.amountMinor, payment.currency, invoice.status === 'paid'),
+    );
     return outcome;
   }
 

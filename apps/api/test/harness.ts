@@ -69,6 +69,8 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     TENANT_CACHE_TTL_MS: '0',
     PAYMENT_SECRETS_KEY: randomBytes(32).toString('base64'),
     PAYMENTS_SANDBOX: 'true',
+    // Les tests déclenchent l'envoi des notifications eux-mêmes (runOnce).
+    NOTIFICATIONS_INTERVAL_MS: '0',
     ...options.env,
   });
 

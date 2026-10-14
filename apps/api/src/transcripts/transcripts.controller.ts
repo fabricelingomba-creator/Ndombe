@@ -22,6 +22,8 @@ import { AuthenticatedUser } from '../auth/authenticated-user';
 import { CurrentUser, Public, RequirePermission } from '../auth/decorators';
 import { ZodPipe } from '../common/zod.pipe';
 import { DatabaseService, Tx } from '../db/database.service';
+import { messages } from '../notifications/catalog';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CurrentTenant } from '../tenancy/current-tenant.decorator';
 import { Tenant } from '../tenancy/tenant';
 import { buildSnapshot, newVerificationCode, normalizeVerificationCode, snapshotHash, TranscriptSnapshot } from './transcript';
@@ -59,6 +61,7 @@ export class MyTranscriptsController {
   constructor(
     private readonly db: DatabaseService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   @Get()
@@ -94,6 +97,12 @@ export class MyTranscriptsController {
         entityId: transcript.id,
         ip: req.ip,
       });
+      await this.notifications.notify(
+        tx,
+        tenant.id,
+        await this.notifications.holders(tx, 'transcripts:validate', undefined, [user.id]),
+        messages.transcriptRequested(user.fullName),
+      );
       return transcript;
     });
   }
@@ -126,6 +135,7 @@ export class TranscriptsController {
   constructor(
     private readonly db: DatabaseService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   @Get()
@@ -193,6 +203,7 @@ export class TranscriptsController {
         after: { studentId: student.id, verificationCode: code, contentHash: hash },
         ip: req.ip,
       });
+      await this.notifications.notify(tx, tenant.id, [student.id], messages.transcriptValidated());
       return { id: transcriptId, status: 'validated', verificationCode: code, contentHash: hash };
     });
   }
@@ -208,7 +219,7 @@ export class TranscriptsController {
     @Req() req: Request,
   ) {
     return this.db.withTenant(tenant.id, async (tx) => {
-      await this.lockPending(tx, transcriptId);
+      const pending = await this.lockPending(tx, transcriptId);
       await tx.query(
         `UPDATE transcripts SET status = 'rejected', decided_by = $2, decided_at = now(), reject_reason = $3 WHERE id = $1`,
         [transcriptId, user.id, body.reason],
@@ -221,6 +232,7 @@ export class TranscriptsController {
         after: { reason: body.reason },
         ip: req.ip,
       });
+      await this.notifications.notify(tx, tenant.id, [pending.student_user_id], messages.transcriptRejected(body.reason));
       return { id: transcriptId, status: 'rejected' };
     });
   }

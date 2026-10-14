@@ -11,3 +11,8 @@ export function toMinor(amount: number): number | null {
 export function fromMinor(minor: number | string): number {
   return Number(minor) / 100;
 }
+
+/** 25050 USD → « 250,50 $US ». */
+export function formatMoney(minor: number | string, currency: string): string {
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency, minimumFractionDigits: 2 }).format(Number(minor) / 100);
+}

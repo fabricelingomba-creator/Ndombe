@@ -148,6 +148,17 @@ describe('Relevés de notes officiels', () => {
     expect(snapshot.verifyUrl).toBe('https://unir.elongo.test/verifier');
   });
 
+  it('les validateurs sont prévenus de chaque demande, et l’étudiant de chaque décision', async () => {
+    const rows = await h.admin.query<{ user_id: string; kind: string; body: string }>(
+      `SELECT user_id, kind, body FROM notifications WHERE kind LIKE 'transcript.%' ORDER BY created_at, kind, user_id`,
+    );
+    const to = (userId: string) => rows.rows.filter((r) => r.user_id === userId).map((r) => r.kind);
+    expect(to(users.sg)).toEqual(['transcript.requested', 'transcript.requested']);
+    expect(to(users.etu)).toEqual(['transcript.rejected', 'transcript.validated']);
+    expect(rows.rows.find((r) => r.kind === 'transcript.rejected')?.body).toMatch(/^Motif : /);
+    expect(to(users.autre)).toEqual([]);
+  });
+
   it("l'étudiant télécharge le PDF ; un autre étudiant ne le peut pas", async () => {
     const res = await api()
       .get(`/v1/me/transcripts/${transcriptId}/pdf`)
